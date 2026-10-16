@@ -150,3 +150,41 @@ dotnet run --project src/Rackline.Web
 ## Decisions
 
 _(Append decisions here as they are made.)_
+
+### M1
+
+- **Tooling**
+  - In the cloud sandbox `builds.dotnet.microsoft.com` is blocked, so the SDK was installed from Ubuntu's archive (`apt-get install dotnet-sdk-10.0`).
+  - The solution uses the `.slnx` format, which is the .NET 10 default.
+  - FluentAssertions is pinned to **7.x**: version 8 onwards needs a paid licence for commercial use.
+  - The Web project comes from `dotnet new blazor --empty` (Interactive Server, set per page).
+- **Match identity**
+  - Matches link to each other by a per-tournament `Number`, not by `Guid`, so draws are fully deterministic.
+  - `Id` (a v7 Guid) is used only for persistence.
+- **Slots and byes**
+  - Each slot is `Awaiting`, `Entry` or `Bye`.
+  - When a match has an entry against a bye, it resolves itself as `Walkover` (`IsBye`).
+  - When both slots are byes, the match is void (`IsVoid`) and passes a bye onwards.
+  - The same mechanism handles single-elimination byes, byes in the losers' bracket and an unused grand-final reset.
+- **Seeding**
+  - Seeds use the standard placement (1, 8, 4, 5, 2, 7, 3, 6 …), so byes go to the top seeds.
+  - Seeded entries come first in seed order. Unseeded entries are shuffled by `IRandom` and take the remaining seed positions.
+  - At the draw, a seed may not be higher than the number of entries.
+- **Double elimination**
+  - The losers' bracket has 2(k−1) rounds.
+  - Losers from each winners' round drop in, and the order is reversed on alternate rounds to avoid an immediate rematch.
+  - The grand-final reset is optional and on by default. Without a reset, the first grand final decides the title.
+  - The loser of a walkover still drops into the losers' bracket.
+- **Round robin**
+  - Fixtures use the circle method; when a group has an odd number of entries, each entry sits out one round.
+  - Entries are allocated to groups in a snake by seed.
+  - Standings rank by wins. A tie between two entries goes to head-to-head. Otherwise ties go to frame difference, then frames won, then draw order.
+  - A walkover counts as a win with no frames.
+- **Results**
+  - The winner must reach `FramesToWin` exactly, and there are no draws.
+  - `Handicap` is stored on `Entry` but does not yet change race lengths.
+  - `Frame` records are a separate log and are not reconciled with the score until M4.
+  - Completing a match and awarding a walkover are `internal` to the domain. They go through `Bracket`/`Tournament` so that progression always runs.
+- **Scope**
+  - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
+  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10.
