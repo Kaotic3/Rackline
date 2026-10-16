@@ -140,12 +140,22 @@ Bracket generation must be **pure, deterministic** domain code. Randomness is in
 ## Commands
 
 ```
+dotnet tool restore                      # installs the local dotnet-ef tool
+docker compose up -d                     # local Postgres 16
 dotnet build
 dotnet test
 dotnet test --filter "Category!=Integration"
-dotnet ef migrations add <Name> -p src/Rackline.Infrastructure -s src/Rackline.Web
-dotnet run --project src/Rackline.Web
+dotnet ef migrations add <Name> -p src/Rackline.Infrastructure -s src/Rackline.Web -o Persistence/Migrations
+dotnet run --project src/Rackline.Web    # migrates and seeds in Development
 ```
+
+Postgres integration tests run only when `RACKLINE_TEST_CONNECTION` is set; otherwise they are skipped. With docker-compose:
+
+```
+RACKLINE_TEST_CONNECTION="Host=localhost;Port=5432;Database=postgres;Username=rackline;Password=rackline_dev" dotnet test
+```
+
+On Windows PowerShell: `$env:RACKLINE_TEST_CONNECTION="..."` and then `dotnet test`.
 
 ## Decisions
 
@@ -188,3 +198,36 @@ _(Append decisions here as they are made.)_
 - **Scope**
   - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
   - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10.
+
+### M2
+
+- **Packages**
+  - `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.3 is in Infrastructure.
+  - `Microsoft.EntityFrameworkCore.Design` 10.0.13 is in Web. `dotnet ef` needs it in the startup project.
+  - `dotnet-ef` 10.0.13 is a local tool listed in `dotnet-tools.json`.
+- **Domain changes for EF**
+  - Entities have private parameterless constructors so that EF can load them.
+  - `Ranking` keeps a list of `RankingEntry` instead of a dictionary.
+  - Membership and roster id sets use `List<Guid>`, and duplicates are prevented, because EF cannot map `HashSet<Guid>`.
+- **Mapping**
+  - EF's default naming is used (PascalCase, so identifiers need quoting in hand-written SQL), and table names are plural.
+  - Enums are stored as text, up to 32 characters.
+  - Domain-generated ids are configured `ValueGeneratedNever`.
+  - `MatchLength`, `FormatOptions`, `MatchSlot` and the optional `SlotLink` are EF complex properties, stored as columns on the owning table.
+  - `Frame`, `Rubber` and `RankingEntry` are owned tables with composite keys.
+  - Player organisation memberships and team rosters are `uuid[]` columns with GIN indexes, not join tables. Revisit in M8 if permissions need more.
+  - The entry ids in match slots and results are indexed, but they are not foreign keys.
+- **Delete rules**
+  - Children inside an aggregate cascade.
+  - References across aggregates restrict (organisation, player, team).
+  - Optional references are set to null (table, home venue).
+  - Deleting a player cascades to their ratings and ranking entries.
+- **Development database**
+  - `docker-compose.yml` runs Postgres 16 with the local-only credentials `rackline` / `rackline_dev`. The same credentials are in `appsettings.Development.json`.
+  - With `Database:MigrateAndSeedOnStartup`, which is set only in Development, the app migrates and then seeds.
+  - `DevelopmentSeeder` contains only invented data and does nothing if any organisation already exists.
+- **Integration tests**
+  - They live in `Rackline.Web.Tests/Persistence`, with no separate Infrastructure test project.
+  - Each test class gets a throwaway database that is dropped afterwards.
+  - `[PostgresFact]` skips when `RACKLINE_TEST_CONNECTION` is not set, and the tests also carry `Category=Integration`.
+  - In the cloud sandbox Docker has no running daemon, so the tests were run against Postgres 16 installed with apt.
