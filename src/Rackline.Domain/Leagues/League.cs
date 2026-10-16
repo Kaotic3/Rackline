@@ -6,6 +6,12 @@ public sealed class League : Entity
 {
     private readonly List<Season> _seasons = [];
 
+    /// <summary>Used by EF Core when loading.</summary>
+    private League()
+    {
+        Name = null!;
+    }
+
     public League(Guid organisationId, string name, Discipline discipline)
     {
         OrganisationId = Guard.NotEmpty(organisationId, "Organisation");
@@ -36,6 +42,12 @@ public sealed class Season : Entity
 {
     private readonly List<Team> _teams = [];
     private readonly List<Fixture> _fixtures = [];
+
+    /// <summary>Used by EF Core when loading.</summary>
+    private Season()
+    {
+        Name = null!;
+    }
 
     internal Season(Guid leagueId, string name, DateOnly startsOn, DateOnly endsOn)
     {
@@ -83,7 +95,13 @@ public sealed class Season : Entity
 
 public sealed class Team : Entity
 {
-    private readonly HashSet<Guid> _playerIds = [];
+    private readonly List<Guid> _playerIds = [];
+
+    /// <summary>Used by EF Core when loading.</summary>
+    private Team()
+    {
+        Name = null!;
+    }
 
     internal Team(Guid seasonId, string name, Guid? homeVenueId)
     {
@@ -100,7 +118,13 @@ public sealed class Team : Entity
 
     public IReadOnlyCollection<Guid> PlayerIds => _playerIds;
 
-    public void AddPlayer(Guid playerId) => _playerIds.Add(Guard.NotEmpty(playerId, "Player"));
+    public void AddPlayer(Guid playerId)
+    {
+        if (!_playerIds.Contains(Guard.NotEmpty(playerId, "Player")))
+        {
+            _playerIds.Add(playerId);
+        }
+    }
 
     public void RemovePlayer(Guid playerId) => _playerIds.Remove(playerId);
 }
@@ -109,6 +133,11 @@ public sealed class Team : Entity
 public sealed class Fixture : Entity
 {
     private readonly List<Rubber> _rubbers = [];
+
+    /// <summary>Used by EF Core when loading.</summary>
+    private Fixture()
+    {
+    }
 
     internal Fixture(Guid seasonId, Guid homeTeamId, Guid awayTeamId, DateTimeOffset? scheduledFor)
     {
@@ -142,6 +171,11 @@ public sealed class Fixture : Entity
 
 public sealed class Rubber
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Rubber()
+    {
+    }
+
     internal Rubber(int number, Guid homePlayerId, Guid awayPlayerId, int homeScore, int awayScore)
     {
         Guard.That(homePlayerId != awayPlayerId, "A player cannot play themselves.");

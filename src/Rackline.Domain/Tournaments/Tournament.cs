@@ -9,6 +9,14 @@ public sealed class Tournament : Entity
     private readonly List<Entry> _entries = [];
     private readonly List<Match> _matches = [];
 
+    /// <summary>Used by EF Core when loading.</summary>
+    private Tournament()
+    {
+        Name = null!;
+        MatchLength = null!;
+        Options = null!;
+    }
+
     public Tournament(
         Guid organisationId,
         string name,

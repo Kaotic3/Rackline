@@ -13,6 +13,12 @@ public enum OrganisationLevel
 
 public sealed class Organisation : Entity
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Organisation()
+    {
+        Name = null!;
+    }
+
     public Organisation(string name, OrganisationLevel level, Organisation? parent = null)
     {
         Name = Guard.NotBlank(name, "Organisation name");

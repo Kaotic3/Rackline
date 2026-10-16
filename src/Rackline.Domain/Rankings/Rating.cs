@@ -7,6 +7,11 @@ public sealed class Rating : Entity
 {
     public const double Initial = 1500;
 
+    /// <summary>Used by EF Core when loading.</summary>
+    private Rating()
+    {
+    }
+
     public Rating(Guid playerId, Discipline discipline)
     {
         PlayerId = Guard.NotEmpty(playerId, "Player");
