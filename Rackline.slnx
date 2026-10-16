@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Rackline.Application/Rackline.Application.csproj" />
+    <Project Path="src/Rackline.Domain/Rackline.Domain.csproj" />
+    <Project Path="src/Rackline.Infrastructure/Rackline.Infrastructure.csproj" />
+    <Project Path="src/Rackline.Web/Rackline.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rackline.Application.Tests/Rackline.Application.Tests.csproj" />
+    <Project Path="tests/Rackline.Domain.Tests/Rackline.Domain.Tests.csproj" />
+    <Project Path="tests/Rackline.Web.Tests/Rackline.Web.Tests.csproj" />
+  </Folder>
+</Solution>
