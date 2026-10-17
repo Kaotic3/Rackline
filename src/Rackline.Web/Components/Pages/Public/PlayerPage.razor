@@ -1,5 +1,7 @@
 @page "/players/{Id:guid}"
 @inject IPlayerQueries Queries
+@inject IRatingQueries RatingQueries
+@inject IRankingQueries RankingQueries
 @inject NavigationManager Navigation
 
 @if (_player is { } p)
@@ -26,7 +28,23 @@
             <ul class="entry-list">
                 @foreach (var rating in p.Ratings)
                 {
-                    <li>@Labels.Of(rating.Discipline): <strong>@Labels.Rating(rating.Value)</strong> <span class="muted">(@rating.MatchesPlayed rated matches)</span></li>
+                    <li>
+                        <a href="/ratings?discipline=@rating.Discipline">@Labels.Of(rating.Discipline)</a>: <strong>@Labels.Rating(rating.Value)</strong>
+                        <span class="muted">(@Labels.Count(rating.MatchesPlayed, "rated match")@(rating.IsProvisional ? ", provisional" : ""))</span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    @if (_rankings.Count > 0)
+    {
+        <section>
+            <h2>Rankings</h2>
+            <ul class="entry-list">
+                @foreach (var ranking in _rankings)
+                {
+                    <li><a href="/rankings/@ranking.RankingId">@ranking.Name</a>: <strong>@Labels.Ordinal(ranking.Position)</strong> <span class="muted">(@ranking.Points points)</span></li>
                 }
             </ul>
         </section>
@@ -53,6 +71,41 @@
         <h2>Recent matches</h2>
         <MatchHistory Matches="_matches.Take(20).ToList()" />
     </section>
+
+    @if (_ratingHistory.Count > 0)
+    {
+        <section>
+            <h2>Rating changes</h2>
+            <div class="table-wrap">
+                <table class="history">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Opponent</th>
+                            <th scope="col">Result</th>
+                            <th scope="col">Change</th>
+                            <th scope="col">Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var change in _ratingHistory)
+                        {
+                            <tr class="@(change.Won ? "won" : "lost")">
+                                <td>@Labels.Date(change.At)</td>
+                                <td>
+                                    <a class="player" href="/players/@change.OpponentId">@change.OpponentName</a>
+                                    <span class="muted">· @Labels.Of(change.Discipline)@(change.TournamentName is null ? "" : $", {change.TournamentName}")</span>
+                                </td>
+                                <td>@(change.Won ? "Won" : "Lost")</td>
+                                <td>@Labels.RatingChange(change.Change)</td>
+                                <td>@Labels.Rating(change.After)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
 }
 
 @code {
@@ -60,6 +113,8 @@
     private IReadOnlyList<PlayedMatchDto> _matches = [];
     private IReadOnlyList<PlayerSummaryDto> _others = [];
     private PlayerRecord? _record;
+    private IReadOnlyList<PlayerRankingDto> _rankings = [];
+    private IReadOnlyList<RatingChangeDto> _ratingHistory = [];
 
     [Parameter]
     public Guid Id { get; set; }
@@ -75,6 +130,8 @@
 
         _matches = await Queries.GetPlayedMatchesAsync(Id, CancellationToken.None);
         _record = PlayerRecord.From(_matches);
+        _rankings = await RankingQueries.ForPlayerAsync(Id, CancellationToken.None);
+        _ratingHistory = await RatingQueries.HistoryAsync(Id, 10, CancellationToken.None);
 
         // Opponents already met come first, as they are the likeliest comparison.
         var met = _matches.Select(m => m.OpponentPlayerId).ToHashSet();

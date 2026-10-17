@@ -68,4 +68,32 @@ public static class Labels
     public static string Date(DateTimeOffset? at) => at is { } value ? value.UtcDateTime.ToString("d MMM yyyy", British) : "";
 
     public static string Rating(double value) => value.ToString("0", British);
+
+    /// <summary>A rating change with its sign, e.g. "+12" or "−8".</summary>
+    public static string RatingChange(double change)
+    {
+        var rounded = Math.Round(change, MidpointRounding.AwayFromZero);
+        return rounded switch
+        {
+            > 0 => $"+{rounded.ToString("0", British)}",
+            < 0 => $"−{(-rounded).ToString("0", British)}",
+            _ => "0",
+        };
+    }
+
+    /// <summary>1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st.</summary>
+    public static string Ordinal(int number)
+    {
+        var suffix = (number % 100) is 11 or 12 or 13 ? "th" : (number % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th",
+        };
+        return $"{number}{suffix}";
+    }
+
+    /// <summary>"1 tournament", "3 tournaments".</summary>
+    public static string Count(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
 }

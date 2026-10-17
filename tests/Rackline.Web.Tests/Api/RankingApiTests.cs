@@ -184,4 +184,41 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await response.Content.ReadAsStringAsync()).Should().Contain("discipline");
     }
+
+    [PostgresFact]
+    public async Task The_public_pages_show_rankings_ratings_and_rating_changes()
+    {
+        var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
+        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var ranking = await ReadAsync<RankingDetailDto>(await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2029")), HttpStatusCode.Created);
+        var (_, tournament, _) = await PlayedRankingTournamentAsync(organisationId, players, ranking.Id);
+        var visitor = api.CreateClient();
+
+        async Task<string> PageAsync(string path)
+        {
+            var response = await visitor.GetAsync(path);
+            response.StatusCode.Should().Be(HttpStatusCode.OK, path);
+            var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+            html.Should().NotContain("\"type\":\"server\"", "public pages are static: no interactive Blazor circuit");
+            return html;
+        }
+
+        (await PageAsync("/rankings")).Should().Contain("Lowland 2029 rankings").And.Contain("1 tournament counted");
+
+        var rankingPage = await PageAsync($"/rankings/{ranking.Id}");
+        rankingPage.Should().Contain("Testy McTest1").And.Contain("<strong>60</strong>");
+        rankingPage.Should().Contain("1st: <strong>60</strong>").And.Contain("3rd: <strong>25</strong>").And.Contain("Below that: <strong>10</strong>");
+        rankingPage.Should().Contain(tournament.Name).And.Contain("Points awarded");
+
+        (await PageAsync($"/tournaments/{tournament.Id}")).Should().Contain("Counts towards").And.Contain($"/rankings/{ranking.Id}");
+
+        var ratings = await PageAsync("/ratings?discipline=NineBall");
+        ratings.Should().Contain("9-ball").And.Contain($"/players/{players[0]}").And.Contain("Provisional");
+
+        var profile = await PageAsync($"/players/{players[1]}");
+        profile.Should().Contain("Rating changes").And.Contain("Lowland 2029 rankings").And.Contain("2nd");
+        profile.Should().Contain("+16").And.Contain(tournament.Name);
+
+        (await visitor.GetAsync($"/rankings/{Guid.CreateVersion7()}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

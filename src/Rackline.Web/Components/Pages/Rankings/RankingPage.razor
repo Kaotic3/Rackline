@@ -1,0 +1,97 @@
+@page "/rankings/{Id:guid}"
+@inject IRankingQueries Queries
+@inject NavigationManager Navigation
+
+@if (_ranking is { } r)
+{
+    <PageTitle>@r.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{r.Name}: {Labels.Of(r.Discipline)} ranking table for {r.Season}.")" /></HeadContent>
+
+    <p><a href="/rankings">← Rankings</a></p>
+    <h1>@r.Name</h1>
+    <p class="muted">@r.OrganisationName · @Labels.Of(r.Discipline) · @r.Season</p>
+
+    <section>
+        <h2>Table</h2>
+        @if (r.Table.Count == 0)
+        {
+            <p class="notice">No points have been awarded yet. Points are added when a ranking tournament finishes.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="standings">
+                    <thead>
+                        <tr>
+                            <th scope="col">Pos</th>
+                            <th scope="col">Player</th>
+                            <th scope="col">Points</th>
+                            <th scope="col">Tournaments</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in r.Table)
+                        {
+                            <tr>
+                                <td>@row.Position</td>
+                                <td><a class="player" href="/players/@row.PlayerId">@row.PlayerName</a></td>
+                                <td><strong>@row.Points</strong></td>
+                                <td>@row.Tournaments</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section>
+        <h2>Points</h2>
+        <p>
+            @for (var i = 0; i < r.PointsByPosition.Count; i++)
+            {
+                <span class="points-step">@Labels.Ordinal(i + 1): <strong>@r.PointsByPosition[i]</strong></span>
+            }
+            <span class="points-step">Below that: <strong>@r.ParticipationPoints</strong></span>
+        </p>
+        <p class="muted">Players who go out at the same stage share the position, so both losing semi-finalists finish third.</p>
+    </section>
+
+    <section>
+        <h2>Tournaments</h2>
+        @if (r.Tournaments.Count == 0)
+        {
+            <p class="muted">No tournaments count towards this ranking yet.</p>
+        }
+        else
+        {
+            <ul class="cards">
+                @foreach (var t in r.Tournaments)
+                {
+                    <li>
+                        <a href="/tournaments/@t.Id">
+                            <strong>@t.Name</strong>
+                            <span class="muted">@(t.Counted ? "Points awarded" : Labels.Of(t.Status))</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+@code {
+    private RankingDetailDto? _ranking;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ranking = await Queries.GetAsync(Id, CancellationToken.None);
+        if (_ranking is null)
+        {
+            Navigation.NotFound();
+        }
+    }
+}
