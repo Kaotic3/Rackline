@@ -204,7 +204,7 @@ _(Append decisions here as they are made.)_
   - Completing a match and awarding a walkover are `internal` to the domain. They go through `Bracket`/`Tournament` so that progression always runs.
 - **Scope**
   - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
-  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10.
+  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10. (Leagues done in M6.)
 
 ### M2
 
@@ -387,3 +387,70 @@ _(Append decisions here as they are made.)_
   - Application tests check `GroupTables` against the domain standings, plus `PlayerRecord` and `HeadToHead`.
   - Public pages are tested over HTTP against tournaments created through the API.
   - The live behaviour was checked by hand in headless Chromium. One frame updated the tournament and match pages in place without a reload. The deciding frame reloaded both, showing the result and the winner moved on.
+
+### M6
+
+- **League model**
+  - `League` is the aggregate root. It holds seasons, which hold teams and fixtures, and fixtures hold rubbers.
+  - `ILeagueRepository` loads a whole league for any change. That is simple, and fine at club-league sizes.
+- **Season rules (`SeasonRules`)**
+  - They cover rubbers per fixture (1–30), the rubber length (race-to or best-of), and points for a win, a draw and each rubber won.
+  - A win must be worth at least a draw.
+  - Rules can be changed only while the season is being set up.
+- **Season lifecycle**
+  - Setup → Scheduled → Completed.
+  - Teams can be added and removed only during set-up.
+  - `GenerateFixtures` moves the season to Scheduled. `Complete` needs every fixture played.
+- **Rosters**
+  - A player may be registered with only one team per season.
+  - Players can be added and removed until the season is completed.
+  - A rubber's players must be on the right team's roster. A player may play more than one rubber in a fixture.
+- **Fixture generation (`LeagueSchedule`)**
+  - It is pure and deterministic.
+  - Pairings use the circle method: one fixture per team per round, and odd team counts give a week off.
+  - One round every `daysBetweenRounds` days (default 7) from the first date. Every fixture must fall within the season's dates.
+  - Home and away is the default: the second half mirrors the first with venues swapped.
+  - Venue rule:
+    - Number the teams round a circle of odd size, adding an imaginary team when the count is even.
+    - A team is at home against the teams up to halfway round the circle from it.
+    - So in a single round robin every team is at home in half its fixtures, to within one. This is tested for every size from 2 to 20.
+  - Manual one-off fixtures were removed; all fixtures come from generation.
+- **Results**
+  - A result is entered as all its rubbers at once, so a league secretary enters or corrects a whole team match.
+  - Re-entering replaces the rubbers, which is how corrections are made. Results can be entered only while the season is Scheduled.
+  - Each rubber must be complete under the rubber length: exactly one player reaches the target. A fixture can be drawn when the rubber count is even.
+  - `Reschedule(fixture, date)` moves a fixture. A null date postpones it ("date to be confirmed"). A fixture that has been played cannot be rescheduled.
+- **League table (`LeagueTable`)**
+  - Points come from the rules.
+  - Ties go to rubber difference, then rubbers won, then team name. Teams level on all three share a position.
+  - Like group standings, it works from plain `FixtureOutcome` records, so the Application `SeasonTable` builds the public table from DTOs with the same rules.
+- **Migration**
+  - `LeagueSeasonsAndResults` adds the rules, the statuses and fixture rounds.
+  - Existing rows get sensible defaults: Setup, 1 rubber per fixture as a race to 1, 2 points for a win and 1 for a draw.
+  - A data fix-up marks seasons that have fixtures as Scheduled, and fixtures that have rubbers as Completed.
+  - It was checked by migrating a database seeded with the M5 code. Dropping and re-seeding the local database is still the cleanest way to get the new sample league.
+- **Concurrency**
+  - `Fixture` uses Postgres `xmin` as a row version, so two people entering the same result cannot overwrite each other unseen.
+- **API** (under `/api`)
+  - The `ManageLeagues` policy (Admin or Organiser) covers changes. Reading is public.
+  - `leagues`: `GET`, `GET {id}`, `POST`, and `POST {id}/seasons`.
+  - `seasons/{id}`: `GET` (season and table), `POST teams`, `DELETE teams/{teamId}`, and `PUT`/`DELETE teams/{teamId}/players/{playerId}`.
+  - Also under `seasons/{id}`: `POST fixtures` (generate), `PUT fixtures/{fixtureId}/result`, `POST fixtures/{fixtureId}/reschedule` and `POST complete`.
+  - Season commands return `{ season, table }`.
+  - Incoming dates and times are converted to UTC at the boundary.
+- **Pages**
+  - Public pages (static SSR):
+    - `/leagues` and `/leagues/{id}`;
+    - `/seasons/{id}`, showing the rules, the table, fixtures by week and team rosters;
+    - `/seasons/{id}/fixtures/{fixtureId}`, showing the rubbers.
+  - The organiser result-entry screen is `/organiser/seasons/{id}/fixtures/{fixtureId}` (Interactive Server, `ManageLeagues`). It has:
+    - player pickers from each team's roster and scores for each rubber, with a running total;
+    - a "Save" button that also serves for corrections;
+    - controls to move the fixture or postpone it.
+  - "Enter result" links appear on the public pages only for organisers.
+  - League and season set-up (creating leagues, seasons and teams, rosters, generating fixtures) is API-only for now. Result entry is the frequent task, so it got the screen.
+- **Bug fixes found along the way**
+  - **Production API errors came back as HTML.** Outside Development, ASP.NET Core rewrites the request path to the error page before calling `IExceptionHandler`, so the "is this /api?" check failed and API 500s were returned as HTML.
+    - The handler now reads the original path from `IExceptionHandlerPathFeature`, and writes problem JSON itself if the shared writer declines.
+    - A regression test forces an API crash and checks for problem JSON with no internal details. The test was shown to fail without the fix.
+  - **The site header ran off the edge on phones.** It now wraps on narrow screens.
