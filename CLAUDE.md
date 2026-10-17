@@ -344,3 +344,46 @@ _(Append decisions here as they are made.)_
   - SignalR is tested with the real client over long polling against the test server.
   - The pages are tested over HTTP (cookie sign-in through the real form, then the server-rendered output).
   - The interactive behaviour was checked by hand in headless Chromium with a throwaway Playwright script (not in the repo): sign-in, frames, break and run, undo, the deciding-frame confirmation, completion, and starting a match on a table.
+
+### M5
+
+- **Pages**
+  - All public pages are static SSR, with no Blazor circuit. A test checks that they have none.
+  - `/` shows what is on now.
+  - `/tournaments` lists tournaments under "In progress", "Coming up" (taking entries or drawn) and "Finished" (completed or cancelled).
+  - `/tournaments/{id}` shows the draw.
+    - Knockouts show one column per round, named "Final", "Semi-final", "Quarter-final", then "Round n".
+    - Double elimination shows the winners' bracket, the losers' bracket and the grand final.
+    - Round robins show each group's table and its fixtures.
+  - `/matches/{id}` is a live scoreboard.
+  - `/players` (with `?search=`) is the player list, and `/players/{id}` is a profile.
+  - `/head-to-head?a=&b=` compares two players.
+  - Unknown ids return 404 through `NavigationManager.NotFound()`.
+  - Draft tournaments are not public: they are left out of lists and return 404.
+- **Bracket display**
+  - Void matches (bye against bye, and an unused grand-final reset) are hidden. Bye matches are shown faded.
+  - Brackets scroll sideways, and later rounds are spaced so each match sits between the two that feed it. There are no connector lines.
+- **Live updates on public pages**
+  - They use the SignalR JavaScript client (`@microsoft/signalr` 10.0.0, MIT). It is vendored, unmodified, in `wwwroot/lib/signalr` with its licence, so no CDN or third-party script is involved.
+  - `wwwroot/js/live.js` is loaded on every page but connects only when a page carries `data-live-tournament` or `data-live-match`.
+  - Score changes update the page in place, with a short highlight.
+  - Anything structural reloads the page: a state change, a slot change or `TournamentUpdated`. Brackets and tables therefore always come from the server.
+  - The script re-syncs after Blazor's enhanced navigation (`enhancedload`). After a reconnect it re-joins its group and reloads, to catch missed updates.
+- **Standings**
+  - `GroupStandings` now works from a plain `GroupResult` record. The overload taking domain matches is kept.
+  - `GroupTables` in Application builds the public tables from DTOs using the same domain rules.
+  - The draw order is not stored, so the final tie-break on public tables is seed, then entry order.
+- **Player records**
+  - `GetPlayedMatchesAsync` returns a player's finished matches against a real opponent (no byes), from that player's side. It uses three queries in total, avoiding N+1.
+  - `PlayerRecord` gives played, won, lost, walkovers, frames and break-and-runs. Walkovers count as wins and losses but add no frames, matching the round-robin standings.
+  - `HeadToHead` filters those matches by opponent.
+- **Display**
+  - Dates are shown as UTC calendar dates in en-GB format (for example, 17 Jan 2026).
+  - Disciplines, formats and statuses have British English labels (`Labels`).
+- **Seed data**
+  - The seeder adds "Winter Nine-Ball Classic", a finished, invented 8-player knockout scored by frame with one upset, so profiles and head-to-heads have history.
+  - To see it locally, drop the local `rackline` database so it re-seeds.
+- **Tests**
+  - Application tests check `GroupTables` against the domain standings, plus `PlayerRecord` and `HeadToHead`.
+  - Public pages are tested over HTTP against tournaments created through the API.
+  - The live behaviour was checked by hand in headless Chromium. One frame updated the tournament and match pages in place without a reload. The deciding frame reloaded both, showing the result and the winner moved on.
