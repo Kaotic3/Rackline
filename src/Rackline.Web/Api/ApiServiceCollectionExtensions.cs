@@ -1,17 +1,21 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
 using Rackline.Application.Live;
+using Rackline.Application.Organisations;
 using Rackline.Application.Rankings;
 using Rackline.Application.Tournaments;
 using Rackline.Infrastructure.Identity;
 using Rackline.Infrastructure.Live;
 using Rackline.Infrastructure.Persistence;
+using Rackline.Domain.Organisations;
 using Rackline.Web.Live;
+using Rackline.Web.Security;
 
 namespace Rackline.Web.Api;
 
@@ -30,6 +34,15 @@ internal static class ApiServiceCollectionExtensions
         services.AddScoped<LeagueResults>();
         services.AddScoped<RankingSetup>();
         services.AddScoped<RatingRebuild>();
+        services.AddScoped<OrganisationSetup>();
+        services.AddScoped<StaffAppointments>();
+        services.AddScoped<PlayerRegistry>();
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<CurrentUser>();
+        services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUser>());
+        services.AddScoped<OrganisationAccess>();
+        services.AddSingleton<IAuthorizationHandler, StaffRequirementHandler>();
 
         services.AddSingleton<LiveFeed>();
         services.AddScoped<ILiveNotifier, SignalRLiveNotifier<LiveHub>>();
@@ -68,10 +81,11 @@ internal static class ApiServiceCollectionExtensions
 
         services.AddCascadingAuthenticationState();
         services.AddAuthorizationBuilder()
-            .AddPolicy(Policies.ManageTournaments, p => p.RequireRole(Roles.Admin, Roles.Organiser))
-            .AddPolicy(Policies.ScoreMatches, p => p.RequireRole(Roles.Admin, Roles.Organiser, Roles.Referee))
-            .AddPolicy(Policies.ManageLeagues, p => p.RequireRole(Roles.Admin, Roles.Organiser))
-            .AddPolicy(Policies.ManageRankings, p => p.RequireRole(Roles.Admin, Roles.Organiser))
+            .AddPolicy(Policies.ManageTournaments, Staff(StaffRole.Organiser))
+            .AddPolicy(Policies.ScoreMatches, Staff(StaffRole.Referee))
+            .AddPolicy(Policies.ManageLeagues, Staff(StaffRole.Organiser))
+            .AddPolicy(Policies.ManageRankings, Staff(StaffRole.Organiser))
+            .AddPolicy(Policies.ManageOrganisations, Staff(StaffRole.Organiser))
             .AddPolicy(Policies.RebuildRatings, p => p.RequireRole(Roles.Admin))
             .AddPolicy(Policies.ManageUsers, p => p.RequireRole(Roles.Admin));
 
@@ -87,7 +101,8 @@ internal static class ApiServiceCollectionExtensions
             .MapPlayerEndpoints()
             .MapUserEndpoints()
             .MapLeagueEndpoints()
-            .MapRankingEndpoints();
+            .MapRankingEndpoints()
+            .MapOrganisationEndpoints();
 
         app.MapHub<LiveHub>("/hubs/live");
 
@@ -127,6 +142,10 @@ internal static class ApiServiceCollectionExtensions
                 await problems.TryWriteAsync(new ProblemDetailsContext { HttpContext = context });
             }
         });
+
+    /// <summary>Signed in, and an admin or holding at least this role somewhere; the command checks where.</summary>
+    private static Action<AuthorizationPolicyBuilder> Staff(StaffRole minimum) =>
+        p => p.RequireAuthenticatedUser().AddRequirements(new StaffRequirement(minimum));
 
     private static Task StatusOrRedirect(RedirectContext<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> context, int status)
     {

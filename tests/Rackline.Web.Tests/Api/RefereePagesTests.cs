@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Infrastructure.Identity;
 using Rackline.Web.Tests.Persistence;
 
@@ -17,16 +18,9 @@ public partial class RefereePagesTests(ApiFactory api) : IClassFixture<ApiFactor
 {
     private HttpClient Browser() => api.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
 
-    private async Task<HttpClient> SignedInBrowserAsync(params string[] roles)
+    private async Task<HttpClient> SignedInBrowserAsync(StaffRole? staff, params string[] roles)
     {
-        var email = $"page-{Guid.NewGuid():N}@example.test";
-        using (var scope = api.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser { UserName = email, Email = email };
-            (await users.CreateAsync(user, ApiFactory.Password)).Succeeded.Should().BeTrue();
-            (await users.AddToRolesAsync(user, roles)).Succeeded.Should().BeTrue();
-        }
+        var email = await api.CreateUserAsync(staff, null, roles);
 
         var browser = Browser();
         var response = await SubmitLoginAsync(browser, email, ApiFactory.Password, "/referee");
@@ -52,7 +46,7 @@ public partial class RefereePagesTests(ApiFactory api) : IClassFixture<ApiFactor
     private async Task<(Guid TournamentId, string TournamentName)> StartedTournamentAsync()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var name = $"Page Test Open {Guid.NewGuid():N}"[..24];
         var created = await organiser.PostAsJsonAsync("/api/tournaments", new
         {
@@ -104,7 +98,7 @@ public partial class RefereePagesTests(ApiFactory api) : IClassFixture<ApiFactor
     [PostgresFact]
     public async Task Players_without_a_scoring_role_are_turned_away()
     {
-        var player = await SignedInBrowserAsync(Roles.Player);
+        var player = await SignedInBrowserAsync(null, Roles.Player);
 
         var response = await player.GetAsync("/referee");
 
@@ -115,7 +109,7 @@ public partial class RefereePagesTests(ApiFactory api) : IClassFixture<ApiFactor
     public async Task Referees_see_tournaments_in_progress_and_the_scoring_page()
     {
         var (id, name) = await StartedTournamentAsync();
-        var referee = await SignedInBrowserAsync(Roles.Referee);
+        var referee = await SignedInBrowserAsync(StaffRole.Referee);
 
         var home = await referee.GetStringAsync("/referee");
         var tournament = await referee.GetStringAsync($"/referee/tournaments/{id}");
@@ -131,7 +125,7 @@ public partial class RefereePagesTests(ApiFactory api) : IClassFixture<ApiFactor
     [PostgresFact]
     public async Task Signing_out_ends_the_session()
     {
-        var referee = await SignedInBrowserAsync(Roles.Referee);
+        var referee = await SignedInBrowserAsync(StaffRole.Referee);
         var page = await referee.GetStringAsync("/referee");
         var token = AntiforgeryToken().Match(page).Groups[1].Value;
 

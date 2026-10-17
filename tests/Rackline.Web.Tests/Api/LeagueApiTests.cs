@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Leagues;
 using Rackline.Domain.Leagues;
 using Rackline.Web.Api;
@@ -30,7 +31,7 @@ public class LeagueApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
         var venueId = await VenueOfAsync(organisationId);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
 
         var league = await ReadAsync<LeagueSummaryDto>(await organiser.PostAsJsonAsync("/api/leagues",
             new { organisationId, name = $"Test League {Guid.NewGuid():N}"[..20], discipline = "EnglishEightBall" }));
@@ -117,7 +118,7 @@ public class LeagueApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     {
         var (_, season) = await ScheduledSeasonAsync();
         var anonymous = api.CreateClient();
-        var referee = await api.ClientForAsync(Roles.Referee);
+        var referee = await api.ClientForAsync(StaffRole.Referee);
         var fixture = season.Season.Fixtures[0];
 
         (await anonymous.GetAsync($"/api/seasons/{season.Season.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);

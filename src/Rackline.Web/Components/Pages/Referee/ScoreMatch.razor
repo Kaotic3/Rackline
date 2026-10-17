@@ -125,6 +125,9 @@ else
     private bool _loaded;
     private string? _error;
 
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
     [Parameter]
     public Guid Id { get; set; }
 
@@ -188,9 +191,9 @@ else
         _error = null;
         try
         {
-            await Scopes.RunAsync(action);
+            await Scopes.RunAsAsync((await AuthenticationState).User, action);
         }
-        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException)
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException or ForbiddenException)
         {
             _error = ex.Message;
         }

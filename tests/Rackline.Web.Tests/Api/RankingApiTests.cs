@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Rankings;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
@@ -37,7 +38,7 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     /// <summary>A four-player 9-ball knockout counting towards the ranking, played out with the better seed winning.</summary>
     private async Task<(HttpClient Organiser, TournamentDetailDto Tournament, List<Guid> Players)> PlayedRankingTournamentAsync(Guid organisationId, List<Guid> players, Guid rankingId)
     {
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var created = await ReadAsync<TournamentDetailDto>(await organiser.PostAsJsonAsync("/api/tournaments", new
         {
             organisationId,
@@ -78,7 +79,7 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task A_ranking_tournament_awards_points_and_rates_every_result()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var created = await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2026"));
         var ranking = await ReadAsync<RankingDetailDto>(created, HttpStatusCode.Created);
         created.Headers.Location!.ToString().Should().Be($"/api/rankings/{ranking.Id}");
@@ -125,7 +126,7 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task Rebuilding_ratings_is_for_admins_and_gives_the_same_answer()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var ranking = await ReadAsync<RankingDetailDto>(await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2026")), HttpStatusCode.Created);
         await PlayedRankingTournamentAsync(organisationId, players, ranking.Id);
         var before = await ReadAsync<List<RatingRowDto>>(await organiser.GetAsync("/api/ratings?discipline=NineBall"));
@@ -145,10 +146,10 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task Rankings_are_validated_and_need_an_organiser()
     {
         var (organisationId, _, _) = await api.AddReferenceDataAsync(0);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
 
         (await api.CreateClient().PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2027"))).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        (await (await api.ClientForAsync(Roles.Referee)).PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2027"))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await (await api.ClientForAsync(StaffRole.Referee)).PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2027"))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var rising = await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2027", points: [10, 20]));
         rising.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -166,7 +167,7 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task A_tournament_cannot_count_towards_a_ranking_for_another_discipline()
     {
         var (organisationId, _, _) = await api.AddReferenceDataAsync(0);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var snooker = await ReadAsync<RankingDetailDto>(
             await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2028", discipline: "Snooker")), HttpStatusCode.Created);
 
@@ -189,7 +190,7 @@ public class RankingApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task The_public_pages_show_rankings_ratings_and_rating_changes()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var ranking = await ReadAsync<RankingDetailDto>(await organiser.PostAsJsonAsync("/api/rankings", NewRanking(organisationId, "2029")), HttpStatusCode.Created);
         var (_, tournament, _) = await PlayedRankingTournamentAsync(organisationId, players, ranking.Id);
         var visitor = api.CreateClient();

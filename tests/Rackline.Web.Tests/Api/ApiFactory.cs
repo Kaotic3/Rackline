@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Domain.Organisations;
@@ -31,7 +32,21 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock)));
     }
 
-    public Task InitializeAsync() => _database.InitializeAsync();
+    /// <summary>
+    /// A top-level organisation over every club the tests add, so staff appointed here (the default)
+    /// can act anywhere in the test data. Tests of the hierarchy itself add their own.
+    /// </summary>
+    public Guid FederationId { get; private set; }
+
+    public async Task InitializeAsync()
+    {
+        await _database.InitializeAsync();
+        var federation = new Organisation($"Test Federation {Guid.NewGuid():N}", OrganisationLevel.National);
+        await using var db = CreateDbContext();
+        db.Organisations.Add(federation);
+        await db.SaveChangesAsync();
+        FederationId = federation.Id;
+    }
 
     public new async Task DisposeAsync()
     {
@@ -41,19 +56,34 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public RacklineDbContext CreateDbContext() => _database.CreateContext();
 
-    /// <summary>Creates a user with the given roles and returns a client signed in as them.</summary>
-    public async Task<HttpClient> ClientForAsync(params string[] roles)
+    /// <summary>Creates a user with the given site-wide roles and returns a client signed in as them.</summary>
+    public async Task<HttpClient> ClientForAsync(params string[] roles) => await SignInAsync(await CreateUserAsync(null, null, roles));
+
+    /// <summary>
+    /// Creates a user appointed with <paramref name="role"/> at the organisation (by default the
+    /// test federation, which is above every club the tests add) and returns a client signed in as them.
+    /// </summary>
+    public async Task<HttpClient> ClientForAsync(StaffRole role, Guid? organisationId = null) =>
+        await SignInAsync(await CreateUserAsync(role, organisationId));
+
+    /// <summary>Creates a user, optionally with an appointment and site-wide roles, and returns their email.</summary>
+    public async Task<string> CreateUserAsync(StaffRole? role, Guid? organisationId = null, params string[] roles)
     {
         var email = $"user-{Guid.NewGuid():N}@example.test";
-        using (var scope = Services.CreateScope())
+        using var scope = Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email };
+        (await users.CreateAsync(user, Password)).Succeeded.Should().BeTrue();
+        (await users.AddToRolesAsync(user, roles)).Succeeded.Should().BeTrue();
+
+        if (role is { } staffRole)
         {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser { UserName = email, Email = email };
-            (await users.CreateAsync(user, Password)).Succeeded.Should().BeTrue();
-            (await users.AddToRolesAsync(user, roles)).Succeeded.Should().BeTrue();
+            await using var db = CreateDbContext();
+            db.Appointments.Add(new Appointment(organisationId ?? FederationId, user.Id, staffRole));
+            await db.SaveChangesAsync();
         }
 
-        return await SignInAsync(email);
+        return email;
     }
 
     public async Task<HttpClient> SignInAsync(string email)
@@ -66,10 +96,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return client;
     }
 
-    /// <summary>Adds an organisation, a venue with one table and some invented players.</summary>
+    /// <summary>Adds a club under the test federation, a venue with one table and some invented players.</summary>
     public async Task<(Guid OrganisationId, Guid TableId, List<Guid> PlayerIds)> AddReferenceDataAsync(int players)
     {
-        var organisation = new Organisation($"Test Club {Guid.NewGuid():N}", OrganisationLevel.Club);
+        await using var lookup = CreateDbContext();
+        var federation = await lookup.Organisations.SingleAsync(o => o.Id == FederationId);
+        var organisation = new Organisation($"Test Club {Guid.NewGuid():N}", OrganisationLevel.Club, federation);
         var venue = new Venue(organisation.Id, "Test Hall");
         var table = venue.AddTable("Table 1");
         var people = Enumerable.Range(1, players).Select(i => new Player("Testy", $"McTest{i}", "GB")).ToList();

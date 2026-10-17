@@ -1,11 +1,12 @@
 using Rackline.Application.Common;
 using Rackline.Domain.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Rankings;
 
 namespace Rackline.Application.Rankings;
 
 /// <summary>Setting up rankings. Points are awarded when a tournament that counts towards one is completed.</summary>
-public sealed class RankingSetup(IRankingRepository rankings, IReferenceData references)
+public sealed class RankingSetup(IRankingRepository rankings, IReferenceData references, OrganisationAccess access)
 {
     public async Task<Guid> CreateAsync(
         Guid organisationId,
@@ -21,6 +22,7 @@ public sealed class RankingSetup(IRankingRepository rankings, IReferenceData ref
             throw new NotFoundException("Organisation", organisationId);
         }
 
+        await access.EnsureAsync(organisationId, StaffRole.Organiser, cancellationToken);
         var ranking = new Ranking(organisationId, name, discipline, season, pointsByPosition, participationPoints);
         rankings.Add(ranking);
         await rankings.SaveChangesAsync(cancellationToken);

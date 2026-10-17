@@ -12,3 +12,6 @@ public sealed class NotFoundException(string resource, object key)
 /// <summary>Someone else changed the same data first; the caller should reload and try again.</summary>
 public sealed class ConflictException(string message, Exception? innerException = null)
     : Exception(message, innerException);
+
+/// <summary>The signed-in user is not allowed to do this.</summary>
+public sealed class ForbiddenException(string message) : Exception(message);

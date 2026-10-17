@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
 using Rackline.Web.Tests.Persistence;
@@ -23,7 +24,7 @@ public class PublicPagesTests(ApiFactory api) : IClassFixture<ApiFactory>
         string format, int players, bool start = true, string? name = null)
     {
         var (organisationId, _, playerIds) = await api.AddReferenceDataAsync(players);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         name ??= $"Public {format} {Guid.NewGuid():N}"[..30];
 
         var created = await organiser.PostAsJsonAsync("/api/tournaments", new

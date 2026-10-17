@@ -18,6 +18,8 @@ public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> option
 {
     public DbSet<Organisation> Organisations => Set<Organisation>();
 
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+
     public DbSet<Venue> Venues => Set<Venue>();
 
     public DbSet<Player> Players => Set<Player>();
@@ -63,6 +65,7 @@ public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> option
         StoreAsString<Discipline>(configurationBuilder);
         StoreAsString<MatchLengthKind>(configurationBuilder);
         StoreAsString<OrganisationLevel>(configurationBuilder);
+        StoreAsString<StaffRole>(configurationBuilder);
         StoreAsString<TournamentFormat>(configurationBuilder);
         StoreAsString<TournamentStatus>(configurationBuilder);
         StoreAsString<MatchState>(configurationBuilder);

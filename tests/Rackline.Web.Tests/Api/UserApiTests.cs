@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Web.Tests.Persistence;
 
 namespace Rackline.Web.Tests.Api;
@@ -52,12 +53,12 @@ public class UserApiTests(ApiFactory api) : IClassFixture<ApiFactory>
         var found = await admin.GetFromJsonAsync<List<User>>($"/api/users?email={memberEmail}");
         var userId = found!.Single().Id;
 
-        var assigned = await admin.PutAsJsonAsync($"/api/users/{userId}/roles", new { roles = new[] { "organiser", "Referee" } });
+        var assigned = await admin.PutAsJsonAsync($"/api/users/{userId}/roles", new { roles = new[] { "admin", "Player" } });
         assigned.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await assigned.Content.ReadFromJsonAsync<User>())!.Roles.Should().BeEquivalentTo(Roles.Organiser, Roles.Referee);
+        (await assigned.Content.ReadFromJsonAsync<User>())!.Roles.Should().BeEquivalentTo(Roles.Admin, Roles.Player);
 
         var reSignedIn = await api.SignInAsync(memberEmail);
-        (await reSignedIn.GetFromJsonAsync<User>("/api/users/me"))!.Roles.Should().BeEquivalentTo(Roles.Organiser, Roles.Referee);
+        (await reSignedIn.GetFromJsonAsync<User>("/api/users/me"))!.Roles.Should().BeEquivalentTo(Roles.Admin, Roles.Player);
 
         var reduced = await admin.PutAsJsonAsync($"/api/users/{userId}/roles", new { roles = new[] { Roles.Player } });
         (await reduced.Content.ReadFromJsonAsync<User>())!.Roles.Should().Equal(Roles.Player);
@@ -67,13 +68,17 @@ public class UserApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task Only_admins_manage_roles_and_only_known_roles_are_accepted()
     {
         var admin = await api.ClientForAsync(Roles.Admin);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var someone = Guid.NewGuid();
 
         (await organiser.PutAsJsonAsync($"/api/users/{someone}/roles", new { roles = new[] { Roles.Admin } }))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await organiser.GetAsync("/api/users")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await admin.PutAsJsonAsync($"/api/users/{someone}/roles", new { roles = new[] { "Wizard" } }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Organisers and referees are appointed at an organisation, not given a site-wide role.
+        (await admin.PutAsJsonAsync($"/api/users/{someone}/roles", new { roles = new[] { "Organiser" } }))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await admin.PutAsJsonAsync($"/api/users/{someone}/roles", new { roles = new[] { Roles.Player } }))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);

@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using Rackline.Web.Security;
+
 namespace Rackline.Web.Components.Shared;
 
 /// <summary>
@@ -17,6 +20,18 @@ public static class ScopedWork
         where TService : notnull
     {
         await using var scope = scopes.CreateAsyncScope();
+        await work(scope.ServiceProvider.GetRequiredService<TService>());
+    }
+
+    /// <summary>
+    /// Runs a command as the page's signed-in user. Interactive pages have no HTTP request for the
+    /// command's permission checks to read the user from, so it is handed over here.
+    /// </summary>
+    public static async Task RunAsAsync<TService>(this IServiceScopeFactory scopes, ClaimsPrincipal user, Func<TService, Task> work)
+        where TService : notnull
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<CurrentUser>().Principal = user;
         await work(scope.ServiceProvider.GetRequiredService<TService>());
     }
 }
