@@ -28,6 +28,20 @@ internal sealed class SeasonConfiguration : IEntityTypeConfiguration<Season>
     {
         builder.ToTable("Seasons");
         builder.Property(s => s.Name).HasMaxLength(100);
+        builder.HasIndex(s => s.Status);
+
+        builder.ComplexProperty(s => s.Rules, rules =>
+        {
+            rules.Property(r => r.RubbersPerFixture).HasColumnName("RubbersPerFixture");
+            rules.Property(r => r.PointsForWin).HasColumnName("PointsForWin");
+            rules.Property(r => r.PointsForDraw).HasColumnName("PointsForDraw");
+            rules.Property(r => r.PointsPerRubber).HasColumnName("PointsPerRubber");
+            rules.ComplexProperty(r => r.RubberLength, length =>
+            {
+                length.Property(l => l.Kind).HasColumnName("RubberLengthKind");
+                length.Property(l => l.Value).HasColumnName("RubberLengthValue");
+            });
+        });
 
         builder.HasMany(s => s.Teams).WithOne()
             .HasForeignKey(t => t.SeasonId)
@@ -61,6 +75,11 @@ internal sealed class FixtureConfiguration : IEntityTypeConfiguration<Fixture>
     public void Configure(EntityTypeBuilder<Fixture> builder)
     {
         builder.ToTable("Fixtures");
+        builder.HasIndex(f => new { f.SeasonId, f.Round });
+        builder.HasIndex(f => f.Status);
+
+        // Postgres xmin: two people entering the same result cannot overwrite each other unseen.
+        builder.Property<uint>("Version").IsRowVersion();
 
         builder.HasOne<Team>().WithMany()
             .HasForeignKey(f => f.HomeTeamId)

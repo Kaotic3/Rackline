@@ -180,28 +180,47 @@ public static class DevelopmentSeeder
         return tournament;
     }
 
+    /// <summary>
+    /// A four-team English 8-ball league, home and away from 8 September 2026: four singles rubbers,
+    /// each a race to 2, with 3 points for a win and 1 for a draw. Rounds 1–3 are played and one
+    /// round-4 fixture is postponed.
+    /// </summary>
     private static League TuesdayLeague(Organisation owner, Venue venue, List<Player> players)
     {
         var league = new League(owner.Id, "Tuesday Night League", Discipline.EnglishEightBall);
-        var season = league.AddSeason("Autumn 2026", new DateOnly(2026, 9, 1), new DateOnly(2026, 12, 15));
+        var season = league.AddSeason("Autumn 2026", new DateOnly(2026, 9, 1), new DateOnly(2026, 12, 15),
+            new SeasonRules(4, MatchLength.RaceTo(2), pointsForWin: 3, pointsForDraw: 1));
 
         string[] teamNames = ["Cushion Kings", "Pocket Rockets", "The Long Pots", "Baulk Line Rovers"];
         var teams = teamNames.Select(name => season.AddTeam(name, venue.Id)).ToList();
         for (var i = 0; i < players.Count; i++)
         {
-            teams[i % teams.Count].AddPlayer(players[i].Id);
+            season.AddPlayerToTeam(teams[i % teams.Count].Id, players[i].Id);
         }
 
-        var fixture = season.AddFixture(teams[0].Id, teams[1].Id, new DateTimeOffset(2026, 9, 8, 19, 30, 0, TimeSpan.Zero));
-        var home = teams[0].PlayerIds.ToList();
-        var away = teams[1].PlayerIds.ToList();
-        int[][] scores = [[2, 1], [0, 2], [2, 0], [1, 2]];
-        for (var i = 0; i < scores.Length; i++)
+        var firstNight = new DateTimeOffset(2026, 9, 8, 19, 30, 0, TimeSpan.Zero);
+        season.GenerateFixtures(firstNight);
+
+        // Invented results: the rubber pattern varies by fixture so the table has a spread.
+        int[][][] patterns =
+        [
+            [[2, 1], [0, 2], [2, 0], [2, 1]],
+            [[1, 2], [2, 0], [0, 2], [2, 1]],
+            [[2, 0], [2, 1], [2, 1], [0, 2]],
+            [[0, 2], [1, 2], [2, 0], [1, 2]],
+        ];
+        var played = season.Fixtures.Where(f => f.Round <= 3).OrderBy(f => f.Round).ToList();
+        for (var f = 0; f < played.Count; f++)
         {
-            fixture.AddRubber(home[i], away[i], scores[i][0], scores[i][1]);
+            var fixture = played[f];
+            var home = season.FindTeam(fixture.HomeTeamId).PlayerIds.ToList();
+            var away = season.FindTeam(fixture.AwayTeamId).PlayerIds.ToList();
+            var pattern = patterns[f % patterns.Length];
+            var rubbers = pattern.Select((score, i) => new RubberResult(home[i], away[(i + f) % away.Count], score[0], score[1])).ToList();
+            season.RecordResult(fixture.Id, rubbers, fixture.ScheduledFor!.Value.AddHours(3));
         }
 
-        season.AddFixture(teams[2].Id, teams[3].Id, new DateTimeOffset(2026, 9, 8, 19, 30, 0, TimeSpan.Zero));
+        season.Reschedule(season.Fixtures.First(f => f.Round == 4).Id, null);
         return league;
     }
 

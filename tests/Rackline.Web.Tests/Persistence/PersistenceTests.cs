@@ -176,12 +176,17 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
         players[0].JoinOrganisation(organisation.Id);
 
         var league = new League(organisation.Id, "Round Trip League", Discipline.EnglishEightBall);
-        var season = league.AddSeason("Spring", new DateOnly(2027, 1, 5), new DateOnly(2027, 4, 30));
+        var season = league.AddSeason("Spring", new DateOnly(2027, 1, 5), new DateOnly(2027, 4, 30),
+            new SeasonRules(1, MatchLength.BestOf(3), pointsForWin: 3, pointsForDraw: 1, pointsPerRubber: 1));
         var home = season.AddTeam("Home Side", venue.Id);
         var away = season.AddTeam("Away Side");
-        home.AddPlayer(players[0].Id);
-        away.AddPlayer(players[1].Id);
-        season.AddFixture(home.Id, away.Id, At).AddRubber(players[0].Id, players[1].Id, 2, 1);
+        season.AddPlayerToTeam(home.Id, players[0].Id);
+        season.AddPlayerToTeam(away.Id, players[1].Id);
+        season.GenerateFixtures(new DateTimeOffset(2027, 1, 12, 19, 0, 0, TimeSpan.Zero), daysBetweenRounds: 14, homeAndAway: true);
+        var firstFixture = season.Fixtures.Single(f => f.Round == 1);
+        var (homePlayer, awayPlayer) = firstFixture.HomeTeamId == home.Id ? (players[0].Id, players[1].Id) : (players[1].Id, players[0].Id);
+        season.RecordResult(firstFixture.Id, [new RubberResult(homePlayer, awayPlayer, 2, 1)], At.AddMonths(9));
+        season.Reschedule(season.Fixtures.Single(f => f.Round == 2).Id, null);
 
         var ranking = new Ranking(organisation.Id, Discipline.EnglishEightBall, "2027");
         ranking.AwardPoints(players[0].Id, 25);
@@ -214,7 +219,13 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
                 .SingleAsync(l => l.Id == league.Id);
             var loadedSeason = loadedLeague.Seasons.Single();
             loadedSeason.Teams.Single(t => t.Name == "Home Side").PlayerIds.Should().Equal(players[0].Id);
-            loadedSeason.Fixtures.Single().Rubbers.Single().Should().BeEquivalentTo(new { Number = 1, HomeScore = 2, AwayScore = 1 });
+            loadedSeason.Should().BeEquivalentTo(new { Status = SeasonStatus.Scheduled, Rules = season.Rules }, o => o.ExcludingMissingMembers());
+            var loadedFirst = loadedSeason.Fixtures.Single(f => f.Round == 1);
+            loadedFirst.Should().BeEquivalentTo(new { Status = FixtureStatus.Completed, CompletedAt = At.AddMonths(9) }, o => o.ExcludingMissingMembers());
+            loadedFirst.Rubbers.Single().Should().BeEquivalentTo(new { Number = 1, HomeScore = 2, AwayScore = 1 });
+            loadedSeason.Fixtures.Single(f => f.Round == 2).Should().BeEquivalentTo(
+                new { Status = FixtureStatus.Postponed, ScheduledFor = (DateTimeOffset?)null }, o => o.ExcludingMissingMembers());
+            loadedSeason.Table().Single(r => r.TeamId == firstFixture.HomeTeamId).Points.Should().Be(3 + 1);
 
             var loadedRanking = await db.Rankings.SingleAsync(r => r.Id == ranking.Id);
             loadedRanking.Table().Select(r => r.PlayerId).Should().Equal(players[1].Id, players[0].Id);
@@ -299,6 +310,9 @@ public class SeederTests(PostgresDatabase database) : IClassFixture<PostgresData
             (await db.Tournaments.CountAsync(t => t.Status == TournamentStatus.Completed)).Should().Be(1);
             (await db.Matches.CountAsync(m => m.State == MatchState.Live)).Should().Be(1);
             (await db.Leagues.CountAsync()).Should().Be(1);
+            var season = (await db.Leagues.Include(l => l.Seasons).ThenInclude(s => s.Fixtures).SingleAsync()).Seasons.Single();
+            season.Fixtures.Count(f => f.Status == Rackline.Domain.Leagues.FixtureStatus.Completed).Should().Be(6);
+            season.Fixtures.Count(f => f.Status == Rackline.Domain.Leagues.FixtureStatus.Postponed).Should().Be(1);
             (await db.Rankings.CountAsync()).Should().Be(1);
             (await db.Ratings.CountAsync()).Should().Be(16);
             (await db.Challenges.CountAsync()).Should().Be(1);

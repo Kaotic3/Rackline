@@ -25,6 +25,9 @@ public static class Policies
     /// <summary>Start matches and record results: Admin, Organiser or Referee.</summary>
     public const string ScoreMatches = nameof(ScoreMatches);
 
+    /// <summary>Set up leagues and seasons, and enter fixture results: Admin or Organiser.</summary>
+    public const string ManageLeagues = nameof(ManageLeagues);
+
     /// <summary>Assign roles to users: Admin only.</summary>
     public const string ManageUsers = nameof(ManageUsers);
 }

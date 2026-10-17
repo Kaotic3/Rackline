@@ -1,0 +1,35 @@
+@page "/leagues"
+@inject ILeagueQueries Queries
+
+<PageTitle>Leagues · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Cue sports leagues: tables, fixtures and results." /></HeadContent>
+
+<h1>Leagues</h1>
+
+@if (_leagues.Count == 0)
+{
+    <p class="notice">There are no leagues yet.</p>
+}
+else
+{
+    <ul class="cards">
+        @foreach (var league in _leagues)
+        {
+            var current = league.Seasons.FirstOrDefault();
+            <li>
+                <a href="/leagues/@league.Id">
+                    <strong>@league.Name</strong>
+                    <span class="muted">
+                        @Labels.Of(league.Discipline)@(current is null ? "" : $" · {current.Name}, {Labels.Of(current.Status).ToLowerInvariant()}")
+                    </span>
+                </a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<LeagueSummaryDto> _leagues = [];
+
+    protected override async Task OnInitializedAsync() => _leagues = await Queries.ListAsync(CancellationToken.None);
+}
