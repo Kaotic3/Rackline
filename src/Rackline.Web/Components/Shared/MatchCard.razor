@@ -1,0 +1,44 @@
+@* One match in a bracket or fixture list. The data-* attributes let live.js update it in place. *@
+<div class="match-card state-@Match.State.ToString().ToLowerInvariant() @(Match.IsByeLike() ? "bye" : "")"
+     data-match="@Match.Id" data-state="@Match.State" data-e1="@Match.Slot1.EntryId" data-e2="@Match.Slot2.EntryId">
+    <div class="match-meta">
+        <span>Match @Match.Number</span>
+        <span class="badge">@StateText</span>
+    </div>
+    @foreach (var slot in new[] { 1, 2 })
+    {
+        var side = slot == 1 ? Match.Slot1 : Match.Slot2;
+        var won = side.EntryId is not null && side.EntryId == Match.WinnerEntryId;
+        <div class="match-side @(won ? "winner" : "")">
+            <PlayerName Tournament="Tournament" Slot="side" />
+            @if (ShowScores)
+            {
+                <span class="score @(slot == 1 ? "js-score1" : "js-score2")">@(slot == 1 ? Match.Score1 : Match.Score2)</span>
+            }
+        </div>
+    }
+    @if (Match.Slot1.Kind == MatchSlotKind.Entry && Match.Slot2.Kind == MatchSlotKind.Entry)
+    {
+        <a class="match-link" href="/matches/@Match.Id">@(Match.State == MatchState.Live ? "Watch live" : "Match page")</a>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public MatchDto Match { get; set; } = default!;
+
+    private bool ShowScores => Match.State is MatchState.Live or MatchState.Completed;
+
+    private string StateText => Match.State switch
+    {
+        MatchState.Live => "Live",
+        MatchState.Ready => "Up next",
+        MatchState.Completed => "Result",
+        MatchState.Walkover when Match.IsByeLike() => "Bye",
+        MatchState.Walkover => "Walkover",
+        _ => "",
+    };
+}

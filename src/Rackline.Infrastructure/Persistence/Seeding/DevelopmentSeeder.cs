@@ -56,7 +56,8 @@ public static class DevelopmentSeeder
         db.Tournaments.AddRange(
             SpringOpen(federation, players, tables),
             ClubNight(club, players),
-            SnookerClassic(club, players));
+            SnookerClassic(club, players),
+            WinterClassic(federation, players, tables));
 
         db.Leagues.Add(TuesdayLeague(club, venue, players));
         db.Rankings.Add(NineBallRanking(federation, players));
@@ -121,6 +122,47 @@ public static class DevelopmentSeeder
             tournament.RecordResult(match.Number, 3, match.Number % 3, at);
         }
 
+        return tournament;
+    }
+
+    /// <summary>
+    /// A finished 8-player 9-ball knockout, scored frame by frame, so profiles and head-to-heads have history.
+    /// The better seed wins every match except one upset in the first round.
+    /// </summary>
+    private static Tournament WinterClassic(Organisation owner, List<Player> players, List<Table> tables)
+    {
+        var tournament = new Tournament(owner.Id, "Winter Nine-Ball Classic", Discipline.NineBall,
+            TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
+        tournament.OpenRegistration();
+        var seeds = players.Take(8).Select((p, i) => tournament.AddEntry(p.Id, seed: i + 1)).ToList();
+        var seedOf = seeds.ToDictionary(e => e.Id, e => e.Seed!.Value);
+
+        tournament.MakeDraw(new SeededRandom(1));
+        tournament.Start();
+
+        var at = new DateTimeOffset(2026, 1, 17, 10, 0, 0, TimeSpan.Zero);
+        var frame = 0;
+        while (tournament.Matches.Where(m => m.State == MatchState.Ready).MinBy(m => m.Number) is { } match)
+        {
+            tournament.StartMatch(match.Number, at, tables[match.Number % tables.Count].Id);
+
+            var better = seedOf[match.Slot1.EntryId!.Value] < seedOf[match.Slot2.EntryId!.Value] ? 1 : 2;
+            var winner = match.Number == 4 ? 3 - better : better; // seed 6 beats seed 3
+            var loserFrames = match.Number % 5;
+            for (var i = 0; i < loserFrames; i++)
+            {
+                tournament.RecordFrame(match.Number, 3 - winner, at, breakAndRun: ++frame % 7 == 0);
+            }
+
+            for (var i = 0; i < 5; i++)
+            {
+                tournament.RecordFrame(match.Number, winner, at.AddMinutes(10 * (i + loserFrames)), breakAndRun: ++frame % 4 == 0);
+            }
+
+            at = at.AddHours(1);
+        }
+
+        tournament.Complete();
         return tournament;
     }
 

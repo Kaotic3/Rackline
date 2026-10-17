@@ -276,3 +276,251 @@ form.inline {
 .blazor-error-boundary::after {
     content: "Something went wrong.";
 }
+
+/* ---- Public pages ---- */
+
+.page {
+    max-width: 72rem;
+}
+
+.grow {
+    flex: 1 1 14rem;
+}
+
+.center {
+    text-align: center;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.live-status {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.entry-list {
+    padding-left: 1.2rem;
+    columns: 2 16rem;
+}
+
+.bracket {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.bracket-round {
+    flex: 0 0 15rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.bracket-round h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    color: var(--muted);
+}
+
+/* Spread later rounds out so each match sits between the two that feed it. */
+.bracket-matches {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 0.6rem;
+}
+
+.fixture-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.6rem;
+}
+
+.match-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.7rem;
+    font-size: 0.95rem;
+}
+
+.match-card.state-live {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.match-card.bye {
+    opacity: 0.6;
+}
+
+.match-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.state-live .badge {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.match-side {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.15rem 0;
+}
+
+.match-side.winner .player {
+    font-weight: 700;
+}
+
+.match-side .score {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.player {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+a.player:hover {
+    text-decoration: underline;
+}
+
+.player.empty {
+    color: var(--muted);
+    font-style: italic;
+}
+
+.match-link {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+}
+
+@keyframes flash {
+    from {
+        background: #fff6c8;
+    }
+
+    to {
+        background: var(--card);
+    }
+}
+
+.flash {
+    animation: flash 0.9s ease-out;
+}
+
+.scoreboard.public .side {
+    background: var(--card);
+}
+
+.scoreboard .side.winner {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.match-status {
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table.standings, table.history {
+    border-collapse: collapse;
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-variant-numeric: tabular-nums;
+}
+
+table.standings th, table.standings td, table.history th, table.history td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+}
+
+table.standings td:nth-child(n + 3), table.standings th:nth-child(n + 3) {
+    text-align: right;
+}
+
+.history .won {
+    font-weight: 600;
+}
+
+.history .lost {
+    color: var(--muted);
+}
+
+details > summary {
+    cursor: pointer;
+    margin: 0.75rem 0;
+    font-weight: 600;
+}
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.6rem;
+}
+
+.tiles div {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.tiles strong {
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tiles span {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.h2h-summary {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.h2h-summary div:first-child {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+}
+
+.h2h-summary div:last-child {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.h2h-summary strong {
+    font-size: 3rem;
+    font-variant-numeric: tabular-nums;
+}

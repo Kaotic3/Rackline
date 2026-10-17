@@ -1,0 +1,79 @@
+@page "/tournaments/{Id:guid}"
+@inject ITournamentQueries Queries
+@inject NavigationManager Navigation
+
+@if (_tournament is { } t)
+{
+    <PageTitle>@t.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{t.Name}: {Labels.Of(t.Discipline)} {Labels.Of(t.Format).ToLowerInvariant()}, draw and results.")" /></HeadContent>
+
+    <div @attributes="LiveAttributes">
+        <p><a href="/tournaments">← Tournaments</a></p>
+        <h1>@t.Name</h1>
+        <p class="muted">
+            @Labels.Of(t.Discipline) · @Labels.Of(t.Format) · @MatchText.Length(t.MatchLength) · <strong>@Labels.Of(t.Status)</strong>
+            @if (IsLive)
+            {
+                <span> · <span class="live-status" data-live-status>Connecting…</span></span>
+            }
+        </p>
+
+        @if (t.Matches.Count == 0)
+        {
+            <p class="notice">The draw has not been made yet.</p>
+        }
+        else if (t.Format == TournamentFormat.RoundRobin)
+        {
+            <GroupView Tournament="t" />
+        }
+        else
+        {
+            <BracketView Tournament="t" />
+        }
+
+        <section>
+            <h2>Entries (@t.Entries.Count)</h2>
+            @if (t.Entries.Count == 0)
+            {
+                <p class="muted">No entries yet.</p>
+            }
+            else
+            {
+                <ul class="entry-list">
+                    @foreach (var entry in t.Entries)
+                    {
+                        <li>
+                            <a href="/players/@entry.PlayerId">@entry.PlayerName</a>
+                            @if (entry.Seed is { } seed)
+                            {
+                                <span class="muted"> · seed @seed</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private TournamentDetailDto? _tournament;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private bool IsLive => _tournament!.Status is TournamentStatus.Drawn or TournamentStatus.InProgress;
+
+    private Dictionary<string, object> LiveAttributes =>
+        IsLive ? new() { ["data-live-tournament"] = Id.ToString() } : [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tournament = await Queries.GetAsync(Id, CancellationToken.None);
+        if (_tournament is null || _tournament.Status == TournamentStatus.Draft)
+        {
+            _tournament = null;
+            Navigation.NotFound();
+        }
+    }
+}

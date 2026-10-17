@@ -1,0 +1,17 @@
+@* A player's name in a match slot, linking to their profile; byes and undecided slots are plain text. *@
+@if (Slot.Kind == MatchSlotKind.Entry && Tournament.Entries.FirstOrDefault(e => e.Id == Slot.EntryId) is { } entry)
+{
+    <a class="player" href="/players/@entry.PlayerId">@entry.PlayerName@(entry.Seed is { } seed ? $" ({seed})" : "")</a>
+}
+else
+{
+    <span class="player empty">@MatchText.Player(Tournament, Slot)</span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public SlotDto Slot { get; set; } = default!;
+}

@@ -1,0 +1,58 @@
+@* Round-robin groups: the table, then the fixtures round by round. *@
+@foreach (var table in GroupTables.For(Tournament))
+{
+    var groupName = $"Group {(char)('A' + table.Group - 1)}";
+    <section>
+        <h2>@(Tournament.GroupCount > 1 ? groupName : "Table")</h2>
+        <div class="table-wrap">
+            <table class="standings">
+                <thead>
+                    <tr>
+                        <th scope="col">Pos</th>
+                        <th scope="col">Player</th>
+                        <th scope="col" title="Played">P</th>
+                        <th scope="col" title="Won">W</th>
+                        <th scope="col" title="Lost">L</th>
+                        <th scope="col" title="Frames won">F</th>
+                        <th scope="col" title="Frames lost">A</th>
+                        <th scope="col" title="Frame difference">+/−</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in table.Rows)
+                    {
+                        <tr>
+                            <td>@row.Position</td>
+                            <td><a href="/players/@row.PlayerId">@row.PlayerName</a></td>
+                            <td>@row.Played</td>
+                            <td>@row.Won</td>
+                            <td>@row.Lost</td>
+                            <td>@row.FramesFor</td>
+                            <td>@row.FramesAgainst</td>
+                            <td>@(row.FrameDifference > 0 ? "+" : "")@row.FrameDifference</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <details open="@(Tournament.Status == TournamentStatus.InProgress)">
+            <summary>@groupName fixtures</summary>
+            @foreach (var round in Tournament.Matches.Where(m => m.Group == table.Group).GroupBy(m => m.Round).OrderBy(g => g.Key))
+            {
+                <h3>Round @round.Key</h3>
+                <div class="fixture-grid">
+                    @foreach (var match in round.OrderBy(m => m.Position))
+                    {
+                        <MatchCard Tournament="Tournament" Match="match" />
+                    }
+                </div>
+            }
+        </details>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = default!;
+}

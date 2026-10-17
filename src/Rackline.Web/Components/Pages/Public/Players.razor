@@ -1,0 +1,43 @@
+@page "/players"
+@inject IPlayerQueries Queries
+
+<PageTitle>Players · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Player profiles, records and head-to-heads." /></HeadContent>
+
+<h1>Players</h1>
+
+<form method="get" class="row search" data-enhance-nav="true">
+    <label class="grow">
+        <span class="visually-hidden">Search by name</span>
+        <input type="search" name="search" value="@Search" placeholder="Search by name" />
+    </label>
+    <button class="button" type="submit">Search</button>
+</form>
+
+@if (_players.Count == 0)
+{
+    <p class="notice">No players match “@Search”.</p>
+}
+else
+{
+    <ul class="cards">
+        @foreach (var player in _players)
+        {
+            <li>
+                <a href="/players/@player.Id">
+                    <strong>@player.DisplayName</strong>
+                    <span class="muted">@player.Nationality@(player.LicenceNumber is null ? "" : $" · {player.LicenceNumber}")</span>
+                </a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<PlayerSummaryDto> _players = [];
+
+    [SupplyParameterFromQuery]
+    private string? Search { get; set; }
+
+    protected override async Task OnInitializedAsync() => _players = await Queries.ListAsync(Search, CancellationToken.None);
+}

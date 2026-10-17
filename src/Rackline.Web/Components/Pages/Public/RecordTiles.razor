@@ -1,0 +1,12 @@
+<section class="tiles" aria-label="Record">
+    <div><strong>@Record.Played</strong><span>Played</span></div>
+    <div><strong>@Record.Won–@Record.Lost</strong><span>Won–lost</span></div>
+    <div><strong>@(Record.WinPercentage is { } pct ? $"{pct}%" : "–")</strong><span>Win rate</span></div>
+    <div><strong>@Record.FramesFor–@Record.FramesAgainst</strong><span>Frames</span></div>
+    <div><strong>@Record.BreakAndRuns</strong><span>Break and runs</span></div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public PlayerRecord Record { get; set; } = default!;
+}

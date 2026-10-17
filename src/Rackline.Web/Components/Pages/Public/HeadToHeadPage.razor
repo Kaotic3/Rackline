@@ -1,0 +1,94 @@
+@page "/head-to-head"
+@inject IPlayerQueries Queries
+@inject NavigationManager Navigation
+
+<PageTitle>@Title · Rackline</PageTitle>
+<HeadContent><meta name="description" content="@($"{Title}: every meeting and the overall record.")" /></HeadContent>
+
+<h1>Head-to-head</h1>
+
+<form method="get" class="row">
+    <label class="grow">
+        Player
+        <select name="a">
+            @foreach (var player in _players)
+            {
+                <option value="@player.Id" selected="@(player.Id == A)">@player.DisplayName</option>
+            }
+        </select>
+    </label>
+    <label class="grow">
+        Opponent
+        <select name="b">
+            @foreach (var player in _players)
+            {
+                <option value="@player.Id" selected="@(player.Id == B)">@player.DisplayName</option>
+            }
+        </select>
+    </label>
+    <button class="button" type="submit">Compare</button>
+</form>
+
+@if (_first is not null && _second is not null && _h2h is not null)
+{
+    if (A == B)
+    {
+        <p class="notice">Choose two different players.</p>
+    }
+    else if (_h2h.Meetings.Count == 0)
+    {
+        <p class="notice">@_first.DisplayName and @_second.DisplayName have not played each other yet.</p>
+    }
+    else
+    {
+        <section class="h2h-summary">
+            <div><a href="/players/@_first.Id">@_first.DisplayName</a><strong>@_h2h.Record.Won</strong></div>
+            <div class="muted">matches won</div>
+            <div><strong>@_h2h.Record.Lost</strong><a href="/players/@_second.Id">@_second.DisplayName</a></div>
+        </section>
+        <p class="muted center">
+            Frames @_h2h.Record.FramesFor–@_h2h.Record.FramesAgainst · break and runs @_h2h.Record.BreakAndRuns–@_h2h.Meetings.Sum(m => m.BreakAndRunsAgainst)
+        </p>
+
+        <section>
+            <h2>Meetings, from @_first.DisplayName's side</h2>
+            <MatchHistory Matches="_h2h.Meetings" />
+        </section>
+    }
+}
+
+@code {
+    private IReadOnlyList<PlayerSummaryDto> _players = [];
+    private PlayerSummaryDto? _first;
+    private PlayerSummaryDto? _second;
+    private HeadToHead? _h2h;
+
+    [SupplyParameterFromQuery]
+    private Guid? A { get; set; }
+
+    [SupplyParameterFromQuery]
+    private Guid? B { get; set; }
+
+    private string Title => _first is not null && _second is not null && A != B
+        ? $"{_first.DisplayName} v {_second.DisplayName}"
+        : "Head-to-head";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _players = await Queries.ListAsync(null, CancellationToken.None);
+        if (A is null || B is null)
+        {
+            return;
+        }
+
+        _first = _players.FirstOrDefault(p => p.Id == A);
+        _second = _players.FirstOrDefault(p => p.Id == B);
+        if (_first is null || _second is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _h2h = HeadToHead.Between(A.Value, B.Value, await Queries.GetPlayedMatchesAsync(A.Value, CancellationToken.None));
+    }
+}

@@ -1,0 +1,40 @@
+@* Finished matches from one player's side, newest first. *@
+@if (Matches.Count == 0)
+{
+    <p class="muted">No finished matches yet.</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="history">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Tournament</th>
+                    <th scope="col">Opponent</th>
+                    <th scope="col">Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Matches)
+                {
+                    <tr>
+                        <td>@Labels.Date(m.PlayedAt)</td>
+                        <td><a href="/tournaments/@m.TournamentId">@m.TournamentName</a></td>
+                        <td><a href="/players/@m.OpponentPlayerId">@m.OpponentName</a></td>
+                        <td>
+                            <a href="/matches/@m.MatchId" class="@(m.Won ? "won" : "lost")">
+                                @(m.Won ? "Won" : "Lost") @(m.Walkover ? "(walkover)" : $"{m.FramesFor}–{m.FramesAgainst}")
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PlayedMatchDto> Matches { get; set; } = [];
+}
