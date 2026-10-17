@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Players;
 using Rackline.Application.Tournaments;
+using Rackline.Application.Venues;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Infrastructure.Persistence;
@@ -78,4 +80,15 @@ internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries
             .Select(p => new PlayerSummaryDto(p.Id, p.FirstName, p.LastName, p.Nationality, p.LicenceNumber))
             .ToListAsync(cancellationToken);
     }
+}
+
+internal sealed class VenueQueries(RacklineDbContext db) : IVenueQueries
+{
+    public async Task<IReadOnlyList<TableDto>> ListTablesAsync(CancellationToken cancellationToken) =>
+        await db.Set<Table>()
+            .AsNoTracking()
+            .Join(db.Venues, t => t.VenueId, v => v.Id, (t, v) => new { Table = t, Venue = v })
+            .OrderBy(x => x.Venue.Name).ThenBy(x => x.Table.Label)
+            .Select(x => new TableDto(x.Table.Id, x.Table.Label, x.Venue.Id, x.Venue.Name))
+            .ToListAsync(cancellationToken);
 }

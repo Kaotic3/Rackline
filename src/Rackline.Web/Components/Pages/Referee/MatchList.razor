@@ -1,0 +1,39 @@
+<section>
+    <h2>@Title</h2>
+    @if (Matches.Count == 0)
+    {
+        <p class="muted">@Empty</p>
+    }
+    else
+    {
+        <ul class="cards">
+            @foreach (var match in Matches)
+            {
+                <li>
+                    <a href="/referee/tournaments/@Tournament.Id/matches/@match.Number">
+                        <span class="muted">Match @match.Number · @MatchText.Round(Tournament, match)</span>
+                        <strong>@MatchText.Player(Tournament, match.Slot1) v @MatchText.Player(Tournament, match.Slot2)</strong>
+                        @if (match.State == MatchState.Live)
+                        {
+                            <span class="score-pill">@match.Score1–@match.Score2</span>
+                        }
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MatchDto> Matches { get; set; } = [];
+
+    [Parameter]
+    public string Empty { get; set; } = "";
+}

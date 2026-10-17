@@ -1,0 +1,219 @@
+@page "/referee/tournaments/{Id:guid}/matches/{Number:int}"
+@attribute [Authorize(Policy = Policies.ScoreMatches)]
+@rendermode InteractiveServer
+@implements IDisposable
+@using Rackline.Application.Live
+@using Rackline.Application.Venues
+@using Rackline.Domain.Common
+@inject IServiceScopeFactory Scopes
+@inject LiveFeed Feed
+
+<PageTitle>Match @Number · Scoring · Rackline</PageTitle>
+
+@if (_tournament is null || _match is null)
+{
+    <p>@(_loaded ? "This match could not be found." : "Loading…")</p>
+}
+else
+{
+    <p><a href="/referee/tournaments/@Id">← @_tournament.Name</a></p>
+    <h1>Match @_match.Number</h1>
+    <p class="muted">@MatchText.Round(_tournament, _match) · @MatchText.Length(_tournament.MatchLength)</p>
+
+    @if (_error is not null)
+    {
+        <p class="alert" role="alert">@_error</p>
+    }
+
+    @switch (_match.State)
+    {
+        case MatchState.Ready:
+            <section class="stack">
+                <label>
+                    Table
+                    <select @bind="_tableId" disabled="@_busy">
+                        <option value="">No table</option>
+                        @foreach (var table in _tables)
+                        {
+                            <option value="@table.Id">@table.VenueName – @table.Label</option>
+                        }
+                    </select>
+                </label>
+                <button class="button big" disabled="@_busy" @onclick="StartAsync">
+                    Start @Name(1) v @Name(2)
+                </button>
+                <details>
+                    <summary>A player has not turned up</summary>
+                    <p>Award the match to the player who is here:</p>
+                    <div class="row">
+                        <button class="button secondary" disabled="@_busy" @onclick="() => WalkoverAsync(1)">Walkover to @Name(1)</button>
+                        <button class="button secondary" disabled="@_busy" @onclick="() => WalkoverAsync(2)">Walkover to @Name(2)</button>
+                    </div>
+                </details>
+            </section>
+            break;
+
+        case MatchState.Live:
+            @if (_confirmSlot is { } slot)
+            {
+                <section class="confirm" role="alertdialog" aria-labelledby="confirm-title">
+                    <h2 id="confirm-title">Award the deciding frame?</h2>
+                    <p>
+                        <strong>@Name(slot)</strong> wins the match
+                        @(slot == 1 ? _match.Score1 + 1 : _match.Score1)–@(slot == 2 ? _match.Score2 + 1 : _match.Score2).
+                    </p>
+                    <div class="row">
+                        <button class="button big" disabled="@_busy" @onclick="() => RecordFrameAsync(slot)">Yes, finish the match</button>
+                        <button class="button secondary" disabled="@_busy" @onclick="() => _confirmSlot = null">Go back</button>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="scoreboard">
+                    @foreach (var side in new[] { 1, 2 })
+                    {
+                        <div class="side">
+                            <span class="name">@Name(side)</span>
+                            <span class="score" aria-label="Score">@(side == 1 ? _match.Score1 : _match.Score2)</span>
+                            <span class="muted">Break and runs: @(side == 1 ? _match.BreakAndRuns1 : _match.BreakAndRuns2)</span>
+                            <button class="button big" disabled="@_busy" @onclick="() => TapAsync(side)">+ Frame</button>
+                        </div>
+                    }
+                </section>
+
+                <section class="row controls">
+                    <label class="toggle">
+                        <input type="checkbox" @bind="_breakAndRun" disabled="@_busy" />
+                        Next frame was a break and run
+                    </label>
+                    <button class="button secondary" disabled="@(_busy || _match.Score1 + _match.Score2 == 0)" @onclick="UndoAsync">
+                        Undo last frame
+                    </button>
+                </section>
+            }
+            break;
+
+        default:
+            <section class="result">
+                @if (_match.State == MatchState.Walkover && _match.WinnerEntryId is { } winner)
+                {
+                    <p><strong>@WinnerName(winner)</strong> won on a walkover.</p>
+                }
+                else if (_match.WinnerEntryId is { } winnerId)
+                {
+                    <p><strong>@WinnerName(winnerId)</strong> won @Math.Max(_match.Score1, _match.Score2)–@Math.Min(_match.Score1, _match.Score2).</p>
+                }
+                else
+                {
+                    <p>This match is waiting for its players.</p>
+                }
+                <p><a class="button" href="/referee/tournaments/@Id">Back to the matches</a></p>
+            </section>
+            break;
+    }
+}
+
+@code {
+    private TournamentDetailDto? _tournament;
+    private MatchDto? _match;
+    private IReadOnlyList<TableDto> _tables = [];
+    private Guid? _tableId;
+    private bool _breakAndRun;
+    private int? _confirmSlot;
+    private bool _busy;
+    private bool _loaded;
+    private string? _error;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public int Number { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Feed.Published += OnLiveUpdate;
+        _tables = await Scopes.RunAsync<IVenueQueries, IReadOnlyList<TableDto>>(q => q.ListTablesAsync(CancellationToken.None));
+        await LoadAsync();
+    }
+
+    private string Name(int slot) => MatchText.Player(_tournament!, slot == 1 ? _match!.Slot1 : _match!.Slot2);
+
+    private string WinnerName(Guid entryId) =>
+        _tournament!.Entries.FirstOrDefault(e => e.Id == entryId)?.PlayerName ?? "Unknown player";
+
+    private async Task LoadAsync()
+    {
+        _tournament = await Scopes.RunAsync<ITournamentQueries, TournamentDetailDto?>(q => q.GetAsync(Id, CancellationToken.None));
+        _match = _tournament?.Matches.FirstOrDefault(m => m.Number == Number);
+        _tableId ??= _match?.TableId;
+        _loaded = true;
+    }
+
+    /// <summary>A tap that would win the match asks first; any other frame is recorded straight away.</summary>
+    private Task TapAsync(int slot)
+    {
+        var score = slot == 1 ? _match!.Score1 : _match!.Score2;
+        if (score + 1 >= _tournament!.MatchLength.FramesToWin)
+        {
+            _confirmSlot = slot;
+            return Task.CompletedTask;
+        }
+
+        return RecordFrameAsync(slot);
+    }
+
+    private Task RecordFrameAsync(int slot) =>
+        ActAsync<LiveScoring>(async s =>
+        {
+            await s.RecordFrameAsync(Id, Number, slot, _breakAndRun, null, null);
+            _breakAndRun = false;
+        });
+
+    private Task UndoAsync() => ActAsync<LiveScoring>(s => s.UndoLastFrameAsync(Id, Number));
+
+    private Task StartAsync() => ActAsync<MatchResults>(r => r.StartAsync(Id, Number, _tableId));
+
+    private Task WalkoverAsync(int slot)
+    {
+        var winner = (slot == 1 ? _match!.Slot1 : _match!.Slot2).EntryId;
+        return winner is { } id ? ActAsync<MatchResults>(r => r.AwardWalkoverAsync(Id, Number, id)) : Task.CompletedTask;
+    }
+
+    private async Task ActAsync<TService>(Func<TService, Task> action)
+        where TService : notnull
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Scopes.RunAsync(action);
+        }
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _confirmSlot = null;
+            await LoadAsync();
+            _busy = false;
+        }
+    }
+
+    private void OnLiveUpdate(LiveUpdate update)
+    {
+        // Another device scoring this match, or a status change, refreshes the screen.
+        if (update.TournamentId == Id && !_busy && (update.Status is not null || update.Matches.Any(m => m.Number == Number)))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Feed.Published -= OnLiveUpdate;
+}

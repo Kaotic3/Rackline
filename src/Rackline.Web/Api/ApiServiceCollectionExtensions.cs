@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -42,13 +43,24 @@ internal static class ApiServiceCollectionExtensions
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<RacklineDbContext>();
 
-        // API callers using the cookie get 401/403, not a redirect to a login page.
+        // Challenges go through the cookie handler: pages redirect to the sign-in page, and its events
+        // below turn that into a plain 401/403 for /api, so bearer-token callers are unaffected.
+        services.Configure<AuthenticationOptions>(o =>
+        {
+            o.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+            o.DefaultForbidScheme = IdentityConstants.ApplicationScheme;
+        });
+
+        // API callers get 401/403, not a redirect to a login page.
         services.ConfigureApplicationCookie(o =>
         {
+            o.LoginPath = "/account/login";
+            o.AccessDeniedPath = "/account/access-denied";
             o.Events.OnRedirectToLogin = ctx => StatusOrRedirect(ctx, StatusCodes.Status401Unauthorized);
             o.Events.OnRedirectToAccessDenied = ctx => StatusOrRedirect(ctx, StatusCodes.Status403Forbidden);
         });
 
+        services.AddCascadingAuthenticationState();
         services.AddAuthorizationBuilder()
             .AddPolicy(Policies.ManageTournaments, p => p.RequireRole(Roles.Admin, Roles.Organiser))
             .AddPolicy(Policies.ScoreMatches, p => p.RequireRole(Roles.Admin, Roles.Organiser, Roles.Referee))
@@ -67,6 +79,13 @@ internal static class ApiServiceCollectionExtensions
             .MapUserEndpoints();
 
         app.MapHub<LiveHub>("/hubs/live");
+
+        // Sign-out for the pages: a form post, protected by antiforgery.
+        app.MapPost("/account/logout", async (SignInManager<ApplicationUser> signIn) =>
+        {
+            await signIn.SignOutAsync();
+            return Results.LocalRedirect("/");
+        });
         return app;
     }
 
@@ -98,7 +117,7 @@ internal static class ApiServiceCollectionExtensions
             }
         });
 
-    private static Task StatusOrRedirect(Microsoft.AspNetCore.Authentication.RedirectContext<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> context, int status)
+    private static Task StatusOrRedirect(RedirectContext<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions> context, int status)
     {
         if (context.Request.Path.StartsWithSegments("/api"))
         {

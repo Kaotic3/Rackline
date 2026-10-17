@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
 using Rackline.Application.Players;
 using Rackline.Application.Tournaments;
+using Rackline.Application.Venues;
 using Rackline.Infrastructure.Identity;
 using Rackline.Infrastructure.Persistence;
 using Rackline.Infrastructure.Persistence.Seeding;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IReferenceData, ReferenceData>();
         services.AddScoped<ITournamentQueries, TournamentQueries>();
         services.AddScoped<IPlayerQueries, PlayerQueries>();
+        services.AddScoped<IVenueQueries, VenueQueries>();
         return services;
     }
 

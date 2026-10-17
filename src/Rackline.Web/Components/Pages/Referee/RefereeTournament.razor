@@ -1,0 +1,56 @@
+@page "/referee/tournaments/{Id:guid}"
+@attribute [Authorize(Policy = Policies.ScoreMatches)]
+@rendermode InteractiveServer
+@implements IDisposable
+@using Rackline.Application.Live
+@inject IServiceScopeFactory Scopes
+@inject LiveFeed Feed
+
+<PageTitle>@(_tournament?.Name ?? "Tournament") · Scoring · Rackline</PageTitle>
+
+@if (_tournament is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <p><a href="/referee">← All tournaments</a></p>
+    <h1>@_tournament.Name</h1>
+    <p class="muted">@MatchText.Length(_tournament.MatchLength) · @_tournament.Status</p>
+
+    <MatchList Title="Live now" Tournament="_tournament" Matches="Playable(MatchState.Live)" Empty="No matches are live." />
+    <MatchList Title="Ready to start" Tournament="_tournament" Matches="Playable(MatchState.Ready)" Empty="No matches are waiting to start." />
+}
+
+@code {
+    private TournamentDetailDto? _tournament;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Feed.Published += OnLiveUpdate;
+        await LoadAsync();
+    }
+
+    private IReadOnlyList<MatchDto> Playable(MatchState state) =>
+        [.. _tournament!.Matches.Where(m => m.State == state).OrderBy(m => m.Number)];
+
+    private Task LoadAsync() =>
+        Scopes.RunAsync<ITournamentQueries>(async q => _tournament = await q.GetAsync(Id, CancellationToken.None));
+
+    private void OnLiveUpdate(LiveUpdate update)
+    {
+        if (update.TournamentId == Id)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => Feed.Published -= OnLiveUpdate;
+}
