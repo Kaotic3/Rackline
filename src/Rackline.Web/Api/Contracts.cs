@@ -13,10 +13,11 @@ public sealed record CreateTournamentRequest(
     [Required] MatchLengthKind? MatchLengthKind,
     [Range(1, 99)] int MatchLengthValue,
     bool GrandFinalReset = true,
-    [Range(1, 32)] int GroupCount = 1) : IValidatableObject
+    [Range(1, 32)] int GroupCount = 1,
+    Guid? RankingId = null) : IValidatableObject
 {
     public TournamentSettings ToSettings() =>
-        new(Name, Discipline!.Value, Format!.Value, MatchLengthKind!.Value, MatchLengthValue, GrandFinalReset, GroupCount);
+        new(Name, Discipline!.Value, Format!.Value, MatchLengthKind!.Value, MatchLengthValue, GrandFinalReset, GroupCount, RankingId);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
         RequestRules.MatchLength(MatchLengthKind, MatchLengthValue);
@@ -29,10 +30,11 @@ public sealed record UpdateTournamentRequest(
     [Required] MatchLengthKind? MatchLengthKind,
     [Range(1, 99)] int MatchLengthValue,
     bool GrandFinalReset = true,
-    [Range(1, 32)] int GroupCount = 1) : IValidatableObject
+    [Range(1, 32)] int GroupCount = 1,
+    Guid? RankingId = null) : IValidatableObject
 {
     public TournamentSettings ToSettings() =>
-        new(Name, Discipline!.Value, Format!.Value, MatchLengthKind!.Value, MatchLengthValue, GrandFinalReset, GroupCount);
+        new(Name, Discipline!.Value, Format!.Value, MatchLengthKind!.Value, MatchLengthValue, GrandFinalReset, GroupCount, RankingId);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
         RequestRules.MatchLength(MatchLengthKind, MatchLengthValue);

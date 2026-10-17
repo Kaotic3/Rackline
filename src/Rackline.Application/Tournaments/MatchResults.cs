@@ -1,11 +1,17 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
+using Rackline.Application.Rankings;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tournaments;
 
-/// <summary>Starting matches and recording how they finished.</summary>
-public sealed class MatchResults(ITournamentRepository tournaments, IReferenceData references, ILiveNotifier notifier, TimeProvider time)
+/// <summary>Starting matches and recording how they finished. Results are rated as they are saved.</summary>
+public sealed class MatchResults(
+    ITournamentRepository tournaments,
+    IReferenceData references,
+    IRatingRepository ratings,
+    ILiveNotifier notifier,
+    TimeProvider time)
 {
     public async Task StartAsync(Guid tournamentId, int matchNumber, Guid? tableId, CancellationToken cancellationToken = default)
     {
@@ -27,8 +33,10 @@ public sealed class MatchResults(ITournamentRepository tournaments, IReferenceDa
     {
         var tournament = await tournaments.GetWithMatchAsync(tournamentId, matchNumber, cancellationToken);
         var changes = MatchChanges.Capture(tournament);
+        var rated = RatingUpdates.RatedSoFar(tournament);
 
         change(tournament);
+        await new RatingUpdates(ratings).RateNewResultsAsync(tournament, rated, cancellationToken);
         await tournaments.SaveChangesAsync(cancellationToken);
         await notifier.MatchesChangedAsync(tournamentId, changes.Since(tournament), cancellationToken);
     }

@@ -28,6 +28,12 @@ public static class Policies
     /// <summary>Set up leagues and seasons, and enter fixture results: Admin or Organiser.</summary>
     public const string ManageLeagues = nameof(ManageLeagues);
 
+    /// <summary>Set up rankings: Admin or Organiser.</summary>
+    public const string ManageRankings = nameof(ManageRankings);
+
+    /// <summary>Work out every rating again from the full history: Admin only.</summary>
+    public const string RebuildRatings = nameof(RebuildRatings);
+
     /// <summary>Assign roles to users: Admin only.</summary>
     public const string ManageUsers = nameof(ManageUsers);
 }

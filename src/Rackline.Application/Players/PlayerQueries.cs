@@ -1,4 +1,5 @@
 using Rackline.Domain.Common;
+using Rackline.Domain.Rankings;
 
 namespace Rackline.Application.Players;
 
@@ -7,7 +8,10 @@ public sealed record PlayerSummaryDto(Guid Id, string FirstName, string LastName
     public string DisplayName => $"{FirstName} {LastName}";
 }
 
-public sealed record RatingDto(Discipline Discipline, double Value, int MatchesPlayed);
+public sealed record RatingDto(Discipline Discipline, double Value, int MatchesPlayed)
+{
+    public bool IsProvisional => MatchesPlayed < Elo.ProvisionalMatches;
+}
 
 public sealed record PlayerProfileDto(
     Guid Id,

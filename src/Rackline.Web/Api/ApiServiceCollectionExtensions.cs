@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
 using Rackline.Application.Live;
+using Rackline.Application.Rankings;
 using Rackline.Application.Tournaments;
 using Rackline.Infrastructure.Identity;
 using Rackline.Infrastructure.Live;
@@ -27,6 +28,8 @@ internal static class ApiServiceCollectionExtensions
         services.AddScoped<LiveScoring>();
         services.AddScoped<LeagueSetup>();
         services.AddScoped<LeagueResults>();
+        services.AddScoped<RankingSetup>();
+        services.AddScoped<RatingRebuild>();
 
         services.AddSingleton<LiveFeed>();
         services.AddScoped<ILiveNotifier, SignalRLiveNotifier<LiveHub>>();
@@ -68,6 +71,8 @@ internal static class ApiServiceCollectionExtensions
             .AddPolicy(Policies.ManageTournaments, p => p.RequireRole(Roles.Admin, Roles.Organiser))
             .AddPolicy(Policies.ScoreMatches, p => p.RequireRole(Roles.Admin, Roles.Organiser, Roles.Referee))
             .AddPolicy(Policies.ManageLeagues, p => p.RequireRole(Roles.Admin, Roles.Organiser))
+            .AddPolicy(Policies.ManageRankings, p => p.RequireRole(Roles.Admin, Roles.Organiser))
+            .AddPolicy(Policies.RebuildRatings, p => p.RequireRole(Roles.Admin))
             .AddPolicy(Policies.ManageUsers, p => p.RequireRole(Roles.Admin));
 
         return services;
@@ -81,7 +86,8 @@ internal static class ApiServiceCollectionExtensions
             .MapTournamentEndpoints()
             .MapPlayerEndpoints()
             .MapUserEndpoints()
-            .MapLeagueEndpoints();
+            .MapLeagueEndpoints()
+            .MapRankingEndpoints();
 
         app.MapHub<LiveHub>("/hubs/live");
 

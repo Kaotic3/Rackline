@@ -24,7 +24,9 @@ public sealed record TournamentDetailDto(
     bool GrandFinalReset,
     int GroupCount,
     IReadOnlyList<EntryDto> Entries,
-    IReadOnlyList<MatchDto> Matches);
+    IReadOnlyList<MatchDto> Matches,
+    Guid? RankingId = null,
+    string? RankingName = null);
 
 public sealed record MatchLengthDto(MatchLengthKind Kind, int Value)
 {

@@ -25,7 +25,6 @@ public static class GroupTables
     public static IReadOnlyList<GroupTableDto> For(TournamentDetailDto tournament)
     {
         var entries = tournament.Entries.ToDictionary(e => e.Id);
-        var entryOrder = tournament.Entries.Select((e, i) => (e.Id, i)).ToDictionary(x => x.Id, x => x.i);
 
         return
         [
@@ -35,13 +34,14 @@ public static class GroupTables
                 .OrderBy(g => g.Key)
                 .Select(group =>
                 {
-                    // The draw order is not stored, so seeds (then entry order) give the final tie-break.
+                    // The draw order is not stored, so seeds (then entry ids) give the final tie-break,
+                    // as in the domain's finishing positions.
                     var members = group
                         .SelectMany(m => new[] { m.Slot1.EntryId, m.Slot2.EntryId })
                         .OfType<Guid>()
                         .Distinct()
                         .OrderBy(id => entries[id].Seed ?? int.MaxValue)
-                        .ThenBy(id => entryOrder[id])
+                        .ThenBy(id => id)
                         .ToList();
 
                     var rows = GroupStandings.Calculate(members, group.Select(ToResult).OfType<GroupResult>())

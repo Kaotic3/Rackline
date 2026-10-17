@@ -15,6 +15,8 @@ public class TournamentUseCaseTests
     private readonly FakeReferences _references = new();
     private readonly FixedTime _time = new(Now);
     private readonly RecordingNotifier _notifier = new();
+    private readonly InMemoryRankings _rankings = new();
+    private readonly InMemoryRatings _ratings = new();
     private readonly Guid _organisationId = Guid.CreateVersion7();
 
     private readonly TournamentLifecycle _lifecycle;
@@ -25,10 +27,10 @@ public class TournamentUseCaseTests
     public TournamentUseCaseTests()
     {
         _references.Organisations.Add(_organisationId);
-        _lifecycle = new TournamentLifecycle(_tournaments, _references, _notifier);
+        _lifecycle = new TournamentLifecycle(_tournaments, _references, _rankings, _notifier);
         _entries = new TournamentEntries(_tournaments, _references, _notifier);
         _draws = new TournamentDraws(_tournaments, _notifier);
-        _results = new MatchResults(_tournaments, _references, _notifier, _time);
+        _results = new MatchResults(_tournaments, _references, _ratings, _notifier, _time);
     }
 
     private static TournamentSettings Settings(TournamentFormat format = TournamentFormat.SingleElimination) =>
