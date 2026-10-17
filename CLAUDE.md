@@ -205,7 +205,7 @@ _(Append decisions here as they are made.)_
   - Completing a match and awarding a walkover are `internal` to the domain. They go through `Bracket`/`Tournament` so that progression always runs.
 - **Scope**
   - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
-  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10. (Leagues done in M6; rankings and ratings in M7.)
+  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10. (Leagues done in M6; rankings and ratings in M7; challenges in M10.)
 
 ### M2
 
@@ -467,7 +467,7 @@ _(Append decisions here as they are made.)_
 - **What is rated**
   - Tournament matches completed by a result, between two entries. Walkovers and byes are not rated, because no frames were played.
   - Rating happens in the same save as the result: `RecordResult`, or the deciding frame in `LiveScoring`. If the save fails, nothing is rated.
-  - League rubbers are not rated yet: a corrected fixture result replaces its rubbers, which would need ratings to be undone. Challenges come in M10.
+  - League rubbers are not rated yet: a corrected fixture result replaces its rubbers, which would need ratings to be undone. Challenges come in M10. (Done in M10, under anti-farming rules.)
   - Matches in a tournament that is later cancelled still count, as they were played.
 - **Rating history**
   - Each rated match stores a `RatingChange` for each player (before, after, opponent, match, time).
@@ -553,3 +553,47 @@ _(Append decisions here as they are made.)_
 - **Bug fixes found along the way**
   - **Player profiles failed about one request in ten under load** (from M7). A static page renders once at its first slow `await`, and the profile set the player before loading its record, so that render could see half-loaded state. It now loads everything before setting any field. A regression test sends 300 requests, 20 at a time.
   - **Organisation levels sorted alphabetically.** Enums are stored as text, so ordering by level in SQL put "Club" before "International". Those lists are now sorted in memory.
+
+### M10
+
+- **Challenges are witnessed, not self-reported**
+  - Players do not have accounts, so a challenge is recorded after it is played by a referee or organiser. Both players must belong to the recording organisation or one below it.
+  - A challenge holds the organisation, the two players, the discipline, the match length, the score and the time it was recorded (`PlayedAt` is when it was recorded, so results are always rated in the order they happened).
+  - The old player-to-player proposal flow (Proposed, Accepted, Declined) was removed, as nobody could use it. The `WitnessedChallenges` migration deletes the old rows, which were only invented sample proposals with no organisation or result.
+  - An organiser can remove a challenge recorded in error. If it counted, every rating is rebuilt without it, since later results were rated on top of it.
+- **Anti-farming rules (`ChallengeRules`)**
+  - The owner asked that ad hoc matches against much weaker players must not be usable to inflate a rating.
+  - A challenge counts towards ratings only if all three hold:
+    1. Both players have a settled rating in that discipline (at least 20 rated matches). A provisional or missing rating could hide a player's real strength, which is the classic way to farm with new accounts.
+    2. Their ratings are no more than 200 points apart. At that gap the favourite is expected to win about three times in four.
+    3. The pair have not had another rated challenge in that discipline within 30 days, either side. This stops two players trading wins, or one losing on purpose, to move a rating.
+  - Otherwise the challenge is still recorded and shows in both players' records and head-to-heads, with the reasons it did not count.
+  - The decision is made once, when the result is recorded, and stored (`Rated`, `UnratedReason`). A ratings rebuild replays stored decisions rather than judging again, so history does not change after the event.
+  - Two results moving the same player's rating at once still clash on the rating's row version, so a burst of challenges cannot slip past the 30-day rule.
+  - Tournament matches are not limited like this: the organiser makes the draw, so players cannot choose their opponents.
+  - Anyone can preview whether a challenge would count, before it is played (`GET /api/challenges/preview`).
+- **Challenge API and pages**
+  - `GET challenges` (newest first, `?playerId=`, `?limit=` up to 200), `GET challenges/{id}`, `GET challenges/preview?player1=&player2=&discipline=`.
+  - `POST challenges` (`ScoreMatches`, then Referee at the organisation) and `DELETE challenges/{id}` (Organiser).
+  - Public `/challenges` explains the rules and lists recent challenges. `/challenges/{id}` shows the result, the rating changes or why it did not count.
+  - Referees record challenges at `/referee/challenges/new`, which shows the preview before saving.
+  - `PlayedMatchDto` now covers challenges too (no tournament; `IsChallenge`), so player records and head-to-heads include them.
+- **Public read-only API**
+  - The existing public `GET` endpoints are the public API, called version 1. It will only grow: fields and addresses may be added, but none removed or changed in meaning.
+  - **CORS:** any site may make `GET` requests from the browser, never with credentials, so another site cannot act as a signed-in user.
+  - **Rate limit:** anonymous callers, including the sign-in endpoints, are limited per address with ASP.NET Core's built-in rate limiter. The default is 120 requests a minute, set by `PublicApi:PermitsPerMinute`. Over the limit they get 429 with `Retry-After` and problem JSON. Signed-in users are not limited, and pages are not limited.
+  - Behind a reverse proxy, every caller would share the proxy's address. Configure forwarded headers when deploying, or the limit applies to everyone together.
+  - **OpenAPI:** `Microsoft.AspNetCore.OpenApi` 10.0.13 (Microsoft's own package) generates `/openapi/v1.json` from the endpoints, so it cannot drift from the code. It includes only public `GET`s under `/api`, without the account endpoints, and each has a short summary. No interactive UI was added.
+  - `/developers` explains the API in plain English, with live updates through the SignalR hub and the overlay. A site footer links to it and to `/challenges`.
+  - **Drafts:** draft tournaments are no longer returned to anonymous API callers (list and detail), matching the site. Signed-in users still see them.
+- **Streaming overlay**
+  - `/overlay/matches/{id}` is a bare scoreboard with no site chrome and a transparent page. It is for a browser source in OBS or similar.
+  - `/overlay/tables/{tableId}` shows whatever is live on that table:
+    - when idle it shows nothing and refreshes every 20 seconds;
+    - when a match finishes, the live script reloads it.
+    So one browser source per camera is enough.
+  - Scores update in place through the existing `live.js`. The pale score highlight is switched off on overlays, as it would flash over the video.
+  - `?theme=light` gives dark text on light panels; the default is light text on dark panels.
+  - Overlay pages use their own empty layout and are marked `noindex`. `App.razor` adds an `overlay` class to the page when the path starts with `/overlay`, which makes the background transparent.
+- **Seed data**
+  - Two invented challenges at the Corner Pocket Club. Neither counts, because the sample players' ratings are still provisional, so the rules can be seen explaining themselves.
