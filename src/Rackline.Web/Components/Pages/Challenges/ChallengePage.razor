@@ -1,0 +1,55 @@
+@page "/challenges/{Id:guid}"
+@inject IChallengeQueries Queries
+@inject NavigationManager Navigation
+
+@if (_challenge is { } c)
+{
+    <PageTitle>@c.Player1Name v @c.Player2Name · Challenge · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{c.Player1Name} {c.Score1}–{c.Score2} {c.Player2Name}: a {Labels.Of(c.Discipline)} challenge.")" /></HeadContent>
+
+    <p><a href="/challenges">← Challenges</a></p>
+    <h1>Challenge</h1>
+    <p class="muted">
+        @Labels.Of(c.Discipline) · @MatchText.Length(c.MatchLength) · @Labels.Date(c.PlayedAt) ·
+        recorded at <a href="/organisations/@c.OrganisationId">@c.OrganisationName</a>
+    </p>
+
+    <section class="scoreboard public">
+        @foreach (var (playerId, name, score, change) in new[] { (c.Player1Id, c.Player1Name, c.Score1, c.RatingChange1), (c.Player2Id, c.Player2Name, c.Score2, c.RatingChange2) })
+        {
+            <div class="side @(playerId == c.WinnerId ? "winner" : "")">
+                <a class="name player" href="/players/@playerId">@name</a>
+                <span class="score">@score</span>
+                @if (change is { } delta)
+                {
+                    <span class="muted">Rating @Labels.RatingChange(delta)</span>
+                }
+            </div>
+        }
+    </section>
+
+    @if (c.Rated)
+    {
+        <p class="notice">This challenge counted towards both players' ratings.</p>
+    }
+    else
+    {
+        <p class="notice">This challenge did not count towards ratings. @c.UnratedReason</p>
+    }
+}
+
+@code {
+    private ChallengeDto? _challenge;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _challenge = await Queries.GetAsync(Id, CancellationToken.None);
+        if (_challenge is null)
+        {
+            Navigation.NotFound();
+        }
+    }
+}

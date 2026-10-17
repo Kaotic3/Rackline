@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rackline.Application.Challenges;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
 using Rackline.Application.Organisations;
@@ -37,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<IOrganisationQueries, OrganisationQueries>();
+        services.AddScoped<IChallengeRepository, ChallengeRepository>();
+        services.AddScoped<IChallengeQueries, ChallengeQueries>();
         return services;
     }
 

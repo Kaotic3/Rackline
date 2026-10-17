@@ -699,3 +699,103 @@ details > summary {
     border: 1px solid var(--line);
     border-radius: var(--radius);
 }
+
+/* ---- Footer ---- */
+
+.site-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    max-width: 72rem;
+    margin: 2rem auto 0;
+    padding: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+code {
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+/* ---- Streaming overlay ---- */
+
+html.overlay,
+html.overlay body {
+    background: transparent;
+}
+
+html.overlay #blazor-error-ui {
+    display: none !important;
+}
+
+.overlay-board {
+    display: inline-flex;
+    flex-direction: column;
+    min-width: 22rem;
+    margin: 0.5rem;
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.overlay-caption {
+    align-self: flex-start;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.95rem;
+    border-radius: 6px 6px 0 0;
+}
+
+.overlay-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.35rem 0.8rem;
+}
+
+.overlay-row:last-child {
+    border-radius: 0 0 6px 6px;
+}
+
+.overlay-name {
+    font-weight: 600;
+}
+
+.overlay-score {
+    min-width: 1.5em;
+    text-align: right;
+    font-weight: 800;
+}
+
+.overlay-board.theme-dark .overlay-caption {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.overlay-board.theme-dark .overlay-row {
+    background: rgba(16, 22, 26, 0.88);
+    color: #ffffff;
+}
+
+.overlay-board.theme-light .overlay-caption {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.overlay-board.theme-light .overlay-row {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
+}
+
+.overlay-row.winner .overlay-name::after {
+    content: " ✓";
+}
+
+/* The page's score highlight would flash a pale box over the video. */
+html.overlay .flash {
+    animation: none;
+}
+
+.overlay-link {
+    font-size: 0.85rem;
+}

@@ -1,0 +1,51 @@
+@page "/overlay/tables/{TableId:guid}"
+@layout Layout.OverlayLayout
+@using Rackline.Application.Venues
+@inject ITournamentQueries Queries
+@inject IVenueQueries Venues
+@inject NavigationManager Navigation
+
+<PageTitle>Overlay · Rackline</PageTitle>
+
+@if (_tournament is { } t && _match is { } m)
+{
+    <OverlayScoreboard Tournament="t" Match="m" Theme="@Theme" />
+}
+else if (_found)
+{
+    @* Nothing is being played on this table: show nothing, and look again shortly. When a match
+       is live, live.js reloads the page as soon as it finishes. *@
+    <HeadContent><meta http-equiv="refresh" content="@IdleRefreshSeconds" /></HeadContent>
+}
+
+@code {
+    public const int IdleRefreshSeconds = 20;
+
+    private TournamentDetailDto? _tournament;
+    private MatchDto? _match;
+    private bool _found;
+
+    [Parameter]
+    public Guid TableId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Theme { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!(await Venues.ListTablesAsync(CancellationToken.None)).Any(t => t.Id == TableId))
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        if (await Queries.FindLiveMatchOnTableAsync(TableId, CancellationToken.None) is { } matchId
+            && await Queries.FindTournamentIdForMatchAsync(matchId, CancellationToken.None) is { } tournamentId
+            && await Queries.GetAsync(tournamentId, CancellationToken.None) is { } tournament)
+        {
+            (_tournament, _match) = (tournament, tournament.Matches.Single(m => m.Id == matchId));
+        }
+
+        _found = true;
+    }
+}

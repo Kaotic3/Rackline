@@ -13,9 +13,11 @@ internal static class OrganisationEndpoints
     {
         var organisations = api.MapGroup("/organisations").WithTags("Organisations");
 
-        organisations.MapGet("/", (IOrganisationQueries queries, CancellationToken ct) => queries.ListAsync(ct));
+        organisations.MapGet("/", (IOrganisationQueries queries, CancellationToken ct) => queries.ListAsync(ct))
+            .WithSummary("Every organisation, with its parent, for building the hierarchy.");
 
-        organisations.MapGet("/{id:guid}", (Guid id, IOrganisationQueries queries, CancellationToken ct) => DetailAsync(id, queries, ct));
+        organisations.MapGet("/{id:guid}", (Guid id, IOrganisationQueries queries, CancellationToken ct) => DetailAsync(id, queries, ct))
+            .WithSummary("One organisation: parent, children, venues, public tournaments, leagues and rankings.");
 
         var manage = organisations.MapGroup("").RequireAuthorization(Policies.ManageOrganisations);
 

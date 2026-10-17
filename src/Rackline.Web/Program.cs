@@ -12,6 +12,7 @@ var connectionString = builder.Configuration.GetConnectionString("Rackline")
     ?? throw new InvalidOperationException("Connection string 'Rackline' is not configured.");
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddRacklineApi();
+builder.Services.AddPublicApi(builder.Configuration);
 
 var app = builder.Build();
 
@@ -40,8 +41,12 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseApiProblemResponses();
 app.UseHttpsRedirection();
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication, so signed-in users can be told apart from anonymous callers.
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 app.MapStaticAssets();

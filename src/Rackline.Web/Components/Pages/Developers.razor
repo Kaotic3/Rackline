@@ -1,0 +1,95 @@
+@page "/developers"
+@using Rackline.Web.Api
+@inject IConfiguration Configuration
+
+<PageTitle>Public API · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Rackline's free, read-only API for tournaments, leagues, rankings, ratings and players." /></HeadContent>
+
+<h1>Public API</h1>
+
+<p class="lead">Everything you can see on Rackline, you can read as JSON: free, with no key and no sign-up.</p>
+
+<section>
+    <h2>The basics</h2>
+    <ul>
+        <li>Every address below starts with <code>/api</code> on this site, and answers <code>GET</code> requests.</li>
+        <li>Responses are JSON. Enums are strings (for example <code>"NineBall"</code>), ids are GUIDs and times are UTC.</li>
+        <li>Pages on other sites may call the API from the browser: cross-origin reads are allowed, without cookies.</li>
+        <li>Anonymous callers may make @_permits requests a minute from one address. Over that you get <code>429 Too Many Requests</code> with a <code>Retry-After</code> header.</li>
+        <li>Errors are <a href="https://www.rfc-editor.org/rfc/rfc9457">problem details</a> JSON: <code>404</code> when something does not exist, <code>400</code> for a bad query.</li>
+        <li>Draft tournaments are not public, here or on the site.</li>
+    </ul>
+    <p>
+        The full description, generated from the code so it is always current, is the OpenAPI document at
+        <a href="/openapi/v1.json"><code>/openapi/v1.json</code></a>. Most API tools can read it.
+    </p>
+    <p class="muted">
+        Version 1 will only grow: fields and addresses may be added, but none will be removed or change meaning.
+    </p>
+</section>
+
+<section>
+    <h2>What you can read</h2>
+    <div class="table-wrap">
+        <table class="history">
+            <thead>
+                <tr><th scope="col">Address</th><th scope="col">What it returns</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var (path, what) in Endpoints)
+                {
+                    <tr><td><code>@path</code></td><td>@what</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section>
+    <h2>Live scores</h2>
+    <p>
+        Scores change as frames are played. Rather than polling, connect to the SignalR hub at <code>/hubs/live</code>, call
+        <code>WatchTournament</code> or <code>WatchMatch</code> with an id, and listen for <code>MatchUpdated</code>,
+        <code>MatchesUpdated</code> and <code>TournamentUpdated</code>.
+    </p>
+</section>
+
+<section>
+    <h2>Streaming overlay</h2>
+    <p>Add a transparent, live scoreboard to a stream as a browser source in OBS or similar software:</p>
+    <ul>
+        <li><code>/overlay/matches/{match id}</code> shows one match.</li>
+        <li>
+            <code>/overlay/tables/{table id}</code> shows whatever is being played on a table, and moves on to the next match by itself,
+            so one browser source per camera is enough. Table ids are in <code>/api/organisations/{id}</code>, under the venues.
+        </li>
+        <li>Add <code>?theme=light</code> for dark text on light panels. The default is light text on dark panels.</li>
+    </ul>
+</section>
+
+@code {
+    private static readonly (string Path, string What)[] Endpoints =
+    [
+        ("/api/tournaments?status=", "Tournaments, optionally by status (Registration, Drawn, InProgress, Completed, Cancelled)."),
+        ("/api/tournaments/{id}", "A tournament with its entries and every match in the draw."),
+        ("/api/leagues", "Leagues, with their seasons."),
+        ("/api/leagues/{id}", "One league."),
+        ("/api/seasons/{id}", "A season: rules, teams, fixtures, rubbers and the league table."),
+        ("/api/rankings", "Rankings."),
+        ("/api/rankings/{id}", "A ranking table, its points scheme and the tournaments that count."),
+        ("/api/ratings?discipline=", "The rating leaderboard for one discipline."),
+        ("/api/players?search=", "Players, optionally by name."),
+        ("/api/players/{id}/ratings", "A player's ratings and recent rating changes."),
+        ("/api/players/{id}/rankings", "Where a player stands in each ranking."),
+        ("/api/organisations", "Every organisation, for building the hierarchy."),
+        ("/api/organisations/{id}", "An organisation with its venues, events, leagues and rankings."),
+        ("/api/challenges?playerId=", "Recent challenges, optionally one player's."),
+        ("/api/challenges/{id}", "A challenge, and whether it counted towards ratings."),
+        ("/api/challenges/preview?player1=&player2=&discipline=", "Whether a challenge between two players would count now."),
+    ];
+
+    private int _permits;
+
+    protected override void OnInitialized() =>
+        _permits = Configuration.GetValue("PublicApi:PermitsPerMinute", PublicApi.DefaultPermitsPerMinute);
+}

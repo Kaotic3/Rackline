@@ -25,11 +25,14 @@ public sealed record PlayerProfileDto(
     public string DisplayName => $"{FirstName} {LastName}";
 }
 
-/// <summary>A finished match against another player, seen from one player's side.</summary>
+/// <summary>
+/// A finished match against another player, seen from one player's side: a tournament match, or a
+/// challenge (no tournament; <see cref="MatchId"/> is then the challenge's id).
+/// </summary>
 public sealed record PlayedMatchDto(
     Guid MatchId,
-    Guid TournamentId,
-    string TournamentName,
+    Guid? TournamentId,
+    string? TournamentName,
     Discipline Discipline,
     DateTimeOffset? PlayedAt,
     Guid OpponentPlayerId,
@@ -39,7 +42,10 @@ public sealed record PlayedMatchDto(
     int FramesFor,
     int FramesAgainst,
     int BreakAndRunsFor,
-    int BreakAndRunsAgainst);
+    int BreakAndRunsAgainst)
+{
+    public bool IsChallenge => TournamentId is null;
+}
 
 public interface IPlayerQueries
 {
@@ -48,6 +54,9 @@ public interface IPlayerQueries
 
     Task<PlayerProfileDto?> GetProfileAsync(Guid playerId, CancellationToken cancellationToken);
 
-    /// <summary>Every finished match the player has played against an opponent (byes excluded), newest first.</summary>
+    /// <summary>Every finished match and challenge the player has played against an opponent (byes excluded), newest first.</summary>
     Task<IReadOnlyList<PlayedMatchDto>> GetPlayedMatchesAsync(Guid playerId, CancellationToken cancellationToken);
+
+    /// <summary>Players who belong to any of the organisations, by name.</summary>
+    Task<IReadOnlyList<PlayerSummaryDto>> MembersOfAsync(IReadOnlyCollection<Guid> organisationIds, CancellationToken cancellationToken);
 }

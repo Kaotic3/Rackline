@@ -94,7 +94,7 @@
                                 <td>@Labels.Date(change.At)</td>
                                 <td>
                                     <a class="player" href="/players/@change.OpponentId">@change.OpponentName</a>
-                                    <span class="muted">· @Labels.Of(change.Discipline)@(change.TournamentName is null ? "" : $", {change.TournamentName}")</span>
+                                    <span class="muted">· @Labels.Of(change.Discipline)@(change.TournamentName is null ? ", challenge" : $", {change.TournamentName}")</span>
                                 </td>
                                 <td>@(change.Won ? "Won" : "Lost")</td>
                                 <td>@Labels.RatingChange(change.Change)</td>

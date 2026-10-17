@@ -1,7 +1,9 @@
+using Rackline.Application.Challenges;
 using Rackline.Application.Common;
 using Rackline.Application.Live;
 using Rackline.Application.Organisations;
 using Rackline.Application.Tournaments;
+using Rackline.Domain.Challenges;
 using Rackline.Domain.Common;
 using Rackline.Domain.Leagues;
 using Rackline.Domain.Organisations;
@@ -255,4 +257,28 @@ internal sealed class FakeOrganisationQueries : IOrganisationQueries
     public Task<IReadOnlyList<StaffDto>> StaffAsync(Guid organisationId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<StaffDto>>([]);
 
     public Task<IReadOnlyList<MyAppointmentDto>> AppointmentsOfAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<MyAppointmentDto>>([]);
+}
+
+internal sealed class InMemoryChallenges : IChallengeRepository
+{
+    public List<Challenge> Challenges { get; } = [];
+
+    public int SaveCount { get; private set; }
+
+    public Task<Challenge?> FindAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Challenges.SingleOrDefault(c => c.Id == id));
+
+    public Task<IReadOnlyList<DateTimeOffset>> RatedMeetingsAsync(Guid player1Id, Guid player2Id, Discipline discipline, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<DateTimeOffset>>([.. Challenges
+            .Where(c => c.Rated && c.Discipline == discipline && c.Involves(player1Id) && c.Involves(player2Id))
+            .Select(c => c.PlayedAt)]);
+
+    public void Add(Challenge challenge) => Challenges.Add(challenge);
+
+    public void Remove(Challenge challenge) => Challenges.Remove(challenge);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        SaveCount++;
+        return Task.CompletedTask;
+    }
 }

@@ -197,9 +197,8 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
         var opponentRating = new Rating(players[3].Id, Discipline.EnglishEightBall);
         var (ratingWon, ratingLost) = Elo.Rate(rating, opponentRating, Guid.CreateVersion7(), At);
 
-        var challenge = new Challenge(players[2].Id, players[3].Id, Discipline.Heyball, MatchLength.RaceTo(3));
-        challenge.Accept();
-        challenge.RecordResult(1, 3, At);
+        var challenge = new Challenge(organisation.Id, players[2].Id, players[3].Id, Discipline.Heyball, MatchLength.RaceTo(3), 1, 3, At,
+            new ChallengeAssessment(false, ["Both players need a settled rating."]));
 
         await using (var db = database.CreateContext())
         {
@@ -240,7 +239,10 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
                 new { PlayerId = players[3].Id, OpponentId = players[2].Id, Won = false, Before = 1500.0, After = 1484.0, At });
 
             var loadedChallenge = await db.Challenges.SingleAsync(c => c.Id == challenge.Id);
-            loadedChallenge.Should().BeEquivalentTo(new { Status = ChallengeStatus.Completed, WinnerId = players[3].Id, CompletedAt = At });
+            loadedChallenge.Should().BeEquivalentTo(new
+            {
+                OrganisationId = organisation.Id, WinnerId = players[3].Id, PlayedAt = At, Rated = false, UnratedReason = "Both players need a settled rating.",
+            });
             loadedChallenge.MatchLength.Should().Be(MatchLength.RaceTo(3));
         }
     }
@@ -326,7 +328,8 @@ public class SeederTests(PostgresDatabase database) : IClassFixture<PostgresData
             (await db.Ratings.CountAsync()).Should().BeGreaterThan(0);
             (await db.Ratings.CountAsync()).Should().Be(await db.RatingChanges.Select(c => new { c.PlayerId, c.Discipline }).Distinct().CountAsync());
             (await db.Ratings.SumAsync(r => r.MatchesPlayed)).Should().Be(await db.RatingChanges.CountAsync());
-            (await db.Challenges.CountAsync()).Should().Be(1);
+            (await db.Challenges.CountAsync()).Should().Be(2);
+            (await db.Challenges.CountAsync(c => c.Rated)).Should().Be(0, "the sample players' ratings are all provisional");
 
             var springOpen = await db.Tournaments.Include(t => t.Matches).SingleAsync(t => t.Name == "Eastbridge Spring Open");
             springOpen.Status.Should().Be(TournamentStatus.InProgress);

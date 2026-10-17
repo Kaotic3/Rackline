@@ -63,7 +63,7 @@ public sealed class RatingChange : Entity
 
     public Discipline Discipline { get; private set; }
 
-    /// <summary>The tournament match that was rated.</summary>
+    /// <summary>The tournament match or challenge that was rated.</summary>
     public Guid MatchId { get; private set; }
 
     public bool Won { get; private set; }

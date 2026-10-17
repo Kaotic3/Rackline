@@ -1,0 +1,16 @@
+<ul class="cards">
+    @foreach (var c in Challenges)
+    {
+        <li>
+            <a href="/challenges/@c.Id">
+                <strong>@c.Player1Name @c.Score1–@c.Score2 @c.Player2Name</strong>
+                <span class="muted">@Labels.Date(c.PlayedAt) · @Labels.Of(c.Discipline) · @(c.Rated ? "Rated" : "Not rated")</span>
+            </a>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChallengeDto> Challenges { get; set; } = [];
+}

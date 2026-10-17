@@ -29,6 +29,8 @@ public sealed partial class ApiFactory : WebApplicationFactory<Program>, IAsyncL
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Rackline", _database.ConnectionString);
         builder.UseSetting("Database:MigrateAndSeedOnStartup", "false");
+        // Tests make many anonymous calls from one address; the limit itself has its own test.
+        builder.UseSetting("PublicApi:PermitsPerMinute", "100000");
         builder.ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock)));
     }
 

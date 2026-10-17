@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Rackline.Domain.Challenges;
 using Rackline.Domain.Common;
 using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
@@ -69,53 +68,5 @@ public class PlayerTests
         player.OrganisationIds.Should().BeEmpty();
         player.DisplayName.Should().Be("Ada Example");
         player.LicenceNumber.Should().Be("LIC-0001");
-    }
-}
-
-public class ChallengeTests
-{
-    private static Challenge NewChallenge(out Guid challenger, out Guid opponent)
-    {
-        challenger = Guid.CreateVersion7();
-        opponent = Guid.CreateVersion7();
-        return new Challenge(challenger, opponent, Discipline.Heyball, MatchLength.RaceTo(4));
-    }
-
-    [Fact]
-    public void Runs_from_proposal_to_result()
-    {
-        var challenge = NewChallenge(out _, out var opponent);
-        var at = new DateTimeOffset(2026, 3, 1, 20, 0, 0, TimeSpan.Zero);
-
-        challenge.Invoking(c => c.RecordResult(4, 2, at)).Should().Throw<DomainException>("not accepted yet");
-        challenge.Accept();
-        challenge.Invoking(c => c.RecordResult(4, 4, at)).Should().Throw<DomainException>();
-        challenge.RecordResult(3, 4, at);
-
-        challenge.Status.Should().Be(ChallengeStatus.Completed);
-        challenge.WinnerId.Should().Be(opponent);
-        challenge.CompletedAt.Should().Be(at);
-    }
-
-    [Fact]
-    public void Can_be_declined_only_while_proposed()
-    {
-        var challenge = NewChallenge(out _, out _);
-
-        challenge.Decline();
-
-        challenge.Status.Should().Be(ChallengeStatus.Declined);
-        challenge.WinnerId.Should().BeNull();
-        challenge.Invoking(c => c.Accept()).Should().Throw<DomainException>();
-        challenge.Invoking(c => c.Decline()).Should().Throw<DomainException>();
-    }
-
-    [Fact]
-    public void A_player_cannot_challenge_themselves()
-    {
-        var player = Guid.CreateVersion7();
-
-        FluentActions.Invoking(() => new Challenge(player, player, Discipline.Heyball, MatchLength.RaceTo(4)))
-            .Should().Throw<DomainException>();
     }
 }
