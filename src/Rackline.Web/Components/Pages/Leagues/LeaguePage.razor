@@ -1,0 +1,49 @@
+@page "/leagues/{Id:guid}"
+@inject ILeagueQueries Queries
+@inject NavigationManager Navigation
+
+@if (_league is { } league)
+{
+    <PageTitle>@league.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{league.Name}: seasons, tables and results.")" /></HeadContent>
+
+    <p><a href="/leagues">← Leagues</a></p>
+    <h1>@league.Name</h1>
+    <p class="muted">@Labels.Of(league.Discipline)</p>
+
+    <h2>Seasons</h2>
+    @if (league.Seasons.Count == 0)
+    {
+        <p class="muted">No seasons yet.</p>
+    }
+    else
+    {
+        <ul class="cards">
+            @foreach (var season in league.Seasons)
+            {
+                <li>
+                    <a href="/seasons/@season.Id">
+                        <strong>@season.Name</strong>
+                        <span class="muted">@Labels.Date(season.StartsOn) to @Labels.Date(season.EndsOn) · @season.TeamCount teams · @Labels.Of(season.Status)</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    private LeagueSummaryDto? _league;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _league = await Queries.GetAsync(Id, CancellationToken.None);
+        if (_league is null)
+        {
+            Navigation.NotFound();
+        }
+    }
+}

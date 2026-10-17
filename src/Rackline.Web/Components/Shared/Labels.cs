@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rackline.Domain.Common;
+using Rackline.Domain.Leagues;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Web.Components.Shared;
@@ -41,6 +42,27 @@ public static class Labels
         TournamentStatus.Cancelled => "Cancelled",
         _ => status.ToString(),
     };
+
+    public static string Of(SeasonStatus status) => status switch
+    {
+        SeasonStatus.Setup => "Being set up",
+        SeasonStatus.Scheduled => "Under way",
+        SeasonStatus.Completed => "Finished",
+        _ => status.ToString(),
+    };
+
+    public static string Of(FixtureStatus status) => status switch
+    {
+        FixtureStatus.Scheduled => "Scheduled",
+        FixtureStatus.Postponed => "Postponed",
+        FixtureStatus.Completed => "Played",
+        _ => status.ToString(),
+    };
+
+    public static string Date(DateOnly date) => date.ToString("d MMM yyyy", British);
+
+    /// <summary>A fixture's date and UTC time, or a note that it is postponed with no new date.</summary>
+    public static string When(DateTimeOffset? at) => at is { } value ? value.UtcDateTime.ToString("ddd d MMM yyyy, HH:mm 'UTC'", British) : "Date to be confirmed";
 
     /// <summary>Dates are stored in UTC and shown as a UTC calendar date.</summary>
     public static string Date(DateTimeOffset? at) => at is { } value ? value.UtcDateTime.ToString("d MMM yyyy", British) : "";

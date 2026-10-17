@@ -1,0 +1,129 @@
+@page "/seasons/{Id:guid}"
+@inject ILeagueQueries Queries
+@inject NavigationManager Navigation
+
+@if (_season is { } s)
+{
+    <PageTitle>@s.LeagueName, @s.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{s.LeagueName} {s.Name}: league table, fixtures and results.")" /></HeadContent>
+
+    <p><a href="/leagues/@s.LeagueId">← @s.LeagueName</a></p>
+    <h1>@s.LeagueName: @s.Name</h1>
+    <p class="muted">
+        @Labels.Of(s.Discipline) · @Labels.Date(s.StartsOn) to @Labels.Date(s.EndsOn) · <strong>@Labels.Of(s.Status)</strong><br />
+        @s.Rules.RubbersPerFixture rubbers a match, each @(s.Rules.RubberLengthKind == MatchLengthKind.RaceTo ? "a race to" : "best of") @s.Rules.RubberLengthValue ·
+        @s.Rules.PointsForWin points for a win, @s.Rules.PointsForDraw for a draw@(s.Rules.PointsPerRubber > 0 ? $", plus {s.Rules.PointsPerRubber} per rubber won" : "")
+    </p>
+
+    <section>
+        <h2>Table</h2>
+        <div class="table-wrap">
+            <table class="standings">
+                <thead>
+                    <tr>
+                        <th scope="col">Pos</th>
+                        <th scope="col">Team</th>
+                        <th scope="col" title="Played">P</th>
+                        <th scope="col" title="Won">W</th>
+                        <th scope="col" title="Drawn">D</th>
+                        <th scope="col" title="Lost">L</th>
+                        <th scope="col" title="Rubbers won">F</th>
+                        <th scope="col" title="Rubbers lost">A</th>
+                        <th scope="col" title="Rubber difference">+/−</th>
+                        <th scope="col" title="Points">Pts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _table)
+                    {
+                        <tr>
+                            <td>@row.Position</td>
+                            <td><a href="#team-@row.TeamId">@row.TeamName</a></td>
+                            <td>@row.Played</td>
+                            <td>@row.Won</td>
+                            <td>@row.Drawn</td>
+                            <td>@row.Lost</td>
+                            <td>@row.RubbersFor</td>
+                            <td>@row.RubbersAgainst</td>
+                            <td>@(row.RubberDifference > 0 ? "+" : "")@row.RubberDifference</td>
+                            <td><strong>@row.Points</strong></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Fixtures and results</h2>
+        @if (s.Fixtures.Count == 0)
+        {
+            <p class="muted">The fixtures have not been made yet.</p>
+        }
+        @foreach (var round in s.Fixtures.GroupBy(f => f.Round).OrderBy(g => g.Key))
+        {
+            <h3>Week @round.Key</h3>
+            <ul class="fixtures">
+                @foreach (var f in round)
+                {
+                    <li class="fixture status-@f.Status.ToString().ToLowerInvariant()">
+                        <a class="fixture-line" href="/seasons/@s.Id/fixtures/@f.Id">
+                            <span class="team home @(f.Status == FixtureStatus.Completed && f.HomeRubbersWon > f.AwayRubbersWon ? "winner" : "")">@s.TeamName(f.HomeTeamId)</span>
+                            <span class="fixture-score">@(f.Status == FixtureStatus.Completed ? $"{f.HomeRubbersWon}–{f.AwayRubbersWon}" : "v")</span>
+                            <span class="team away @(f.Status == FixtureStatus.Completed && f.AwayRubbersWon > f.HomeRubbersWon ? "winner" : "")">@s.TeamName(f.AwayTeamId)</span>
+                        </a>
+                        <span class="muted fixture-when">@(f.Status == FixtureStatus.Postponed ? "Postponed" : Labels.When(f.ScheduledFor))</span>
+                        <AuthorizeView Policy="@Policies.ManageLeagues">
+                            @if (s.Status == SeasonStatus.Scheduled)
+                            {
+                                <a class="fixture-admin" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct result" : "Enter result")</a>
+                            }
+                        </AuthorizeView>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section>
+        <h2>Teams</h2>
+        <div class="team-grid">
+            @foreach (var team in s.Teams)
+            {
+                <div class="team-card" id="team-@team.Id">
+                    <h3>@team.Name</h3>
+                    @if (team.HomeVenueName is not null)
+                    {
+                        <p class="muted">Home: @team.HomeVenueName</p>
+                    }
+                    <ul>
+                        @foreach (var player in team.Players)
+                        {
+                            <li><a href="/players/@player.Id">@player.Name</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private SeasonDetailDto? _season;
+    private IReadOnlyList<LeagueTableRowDto> _table = [];
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _season = await Queries.GetSeasonAsync(Id, CancellationToken.None);
+        if (_season is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _table = SeasonTable.For(_season);
+    }
+}

@@ -1,0 +1,79 @@
+@page "/seasons/{SeasonId:guid}/fixtures/{Id:guid}"
+@inject ILeagueQueries Queries
+@inject NavigationManager Navigation
+
+@if (_season is { } s && _fixture is { } f)
+{
+    <PageTitle>@s.TeamName(f.HomeTeamId) v @s.TeamName(f.AwayTeamId) · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{s.TeamName(f.HomeTeamId)} v {s.TeamName(f.AwayTeamId)}, week {f.Round} of {s.LeagueName} {s.Name}.")" /></HeadContent>
+
+    <p><a href="/seasons/@s.Id">← @s.LeagueName: @s.Name</a></p>
+    <h1>@s.TeamName(f.HomeTeamId) v @s.TeamName(f.AwayTeamId)</h1>
+    <p class="muted">Week @f.Round · @(f.Status == FixtureStatus.Postponed ? "Postponed, date to be confirmed" : Labels.When(f.ScheduledFor)) · @Labels.Of(f.Status)</p>
+
+    @if (f.Status == FixtureStatus.Completed)
+    {
+        <section class="h2h-summary">
+            <div><span>@s.TeamName(f.HomeTeamId)</span><strong>@f.HomeRubbersWon</strong></div>
+            <div class="muted">rubbers</div>
+            <div><strong>@f.AwayRubbersWon</strong><span>@s.TeamName(f.AwayTeamId)</span></div>
+        </section>
+
+        <div class="table-wrap">
+            <table class="history rubbers">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Home</th>
+                        <th scope="col">Score</th>
+                        <th scope="col">Away</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in f.Rubbers)
+                    {
+                        <tr>
+                            <td>@r.Number</td>
+                            <td class="@(r.HomeScore > r.AwayScore ? "won" : "")"><a href="/players/@r.HomePlayerId">@s.PlayerName(r.HomePlayerId)</a></td>
+                            <td>@r.HomeScore–@r.AwayScore</td>
+                            <td class="@(r.AwayScore > r.HomeScore ? "won" : "")"><a href="/players/@r.AwayPlayerId">@s.PlayerName(r.AwayPlayerId)</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <p class="notice">This fixture has not been played yet.</p>
+    }
+
+    <AuthorizeView Policy="@Policies.ManageLeagues">
+        @if (s.Status == SeasonStatus.Scheduled)
+        {
+            <p><a class="button" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct the result" : "Enter the result")</a></p>
+        }
+    </AuthorizeView>
+}
+
+@code {
+    private SeasonDetailDto? _season;
+    private FixtureDto? _fixture;
+
+    [Parameter]
+    public Guid SeasonId { get; set; }
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _season = await Queries.GetSeasonAsync(SeasonId, CancellationToken.None);
+        _fixture = _season?.Fixtures.FirstOrDefault(f => f.Id == Id);
+        if (_fixture is null)
+        {
+            _season = null;
+            Navigation.NotFound();
+        }
+    }
+}

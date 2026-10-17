@@ -1,0 +1,192 @@
+@page "/organiser/seasons/{SeasonId:guid}/fixtures/{Id:guid}"
+@attribute [Authorize(Policy = Policies.ManageLeagues)]
+@rendermode InteractiveServer
+@using System.Globalization
+@inject IServiceScopeFactory Scopes
+
+<PageTitle>Enter result · Rackline</PageTitle>
+
+@if (_season is null || _fixture is null)
+{
+    <p>@(_loaded ? "This fixture could not be found." : "Loading…")</p>
+}
+else
+{
+    <p><a href="/seasons/@SeasonId/fixtures/@Id">← Back to the fixture</a></p>
+    <h1>@Home.Name v @Away.Name</h1>
+    <p class="muted">
+        Week @_fixture.Round · @(_fixture.Status == FixtureStatus.Postponed ? "Postponed" : Labels.When(_fixture.ScheduledFor)) ·
+        @_season.Rules.RubbersPerFixture rubbers, each @(_season.Rules.RubberLengthKind == MatchLengthKind.RaceTo ? "a race to" : "best of") @_season.Rules.RubberLengthValue
+    </p>
+
+    @if (_message is not null)
+    {
+        <p class="@(_messageIsError ? "alert" : "notice")" role="status">@_message</p>
+    }
+
+    @if (_season.Status != SeasonStatus.Scheduled)
+    {
+        <p class="notice">Results can only be entered while the season is under way.</p>
+    }
+    else
+    {
+        <section>
+            <h2>Result</h2>
+            <div class="table-wrap">
+                <table class="history rubber-entry">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">@Home.Name</th>
+                            <th scope="col" colspan="2">Score</th>
+                            <th scope="col">@Away.Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td>@row.Number</td>
+                                <td>
+                                    <select @bind="row.HomePlayerId" aria-label="@($"Rubber {row.Number} home player")" disabled="@_busy">
+                                        <option value="">Choose…</option>
+                                        @foreach (var p in Home.Players)
+                                        {
+                                            <option value="@p.Id">@p.Name</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><input type="number" min="0" max="@_season.Rules.FramesToWin" @bind="row.HomeScore" aria-label="@($"Rubber {row.Number} home score")" disabled="@_busy" /></td>
+                                <td><input type="number" min="0" max="@_season.Rules.FramesToWin" @bind="row.AwayScore" aria-label="@($"Rubber {row.Number} away score")" disabled="@_busy" /></td>
+                                <td>
+                                    <select @bind="row.AwayPlayerId" aria-label="@($"Rubber {row.Number} away player")" disabled="@_busy">
+                                        <option value="">Choose…</option>
+                                        @foreach (var p in Away.Players)
+                                        {
+                                            <option value="@p.Id">@p.Name</option>
+                                        }
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted">Rubbers so far: @Home.Name @_rows.Count(r => r.HomeScore > r.AwayScore) – @_rows.Count(r => r.AwayScore > r.HomeScore) @Away.Name</p>
+            <button class="button big" disabled="@(_busy || !Complete)" @onclick="SaveAsync">
+                @(_fixture.Status == FixtureStatus.Completed ? "Save the corrected result" : "Save the result")
+            </button>
+        </section>
+
+        @if (_fixture.Status != FixtureStatus.Completed)
+        {
+            <section>
+                <h2>Change the date</h2>
+                <div class="row">
+                    <label>
+                        New date and time (UTC)
+                        <input type="datetime-local" @bind="_newDate" disabled="@_busy" />
+                    </label>
+                    <button class="button secondary" disabled="@(_busy || _newDate is null)" @onclick="() => RescheduleAsync(_newDate)">Move to this date</button>
+                    <button class="button secondary" disabled="@_busy" @onclick="() => RescheduleAsync(null)">Postpone, date to be confirmed</button>
+                </div>
+            </section>
+        }
+    }
+}
+
+@code {
+    private SeasonDetailDto? _season;
+    private FixtureDto? _fixture;
+    private List<RubberRow> _rows = [];
+    private DateTime? _newDate;
+    private bool _busy;
+    private bool _loaded;
+    private string? _message;
+    private bool _messageIsError;
+
+    [Parameter]
+    public Guid SeasonId { get; set; }
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private TeamDto Home => _season!.Teams.Single(t => t.Id == _fixture!.HomeTeamId);
+
+    private TeamDto Away => _season!.Teams.Single(t => t.Id == _fixture!.AwayTeamId);
+
+    private bool Complete => _rows.All(r => r.HomePlayerId is not null && r.AwayPlayerId is not null);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _season = await Scopes.RunAsync<ILeagueQueries, SeasonDetailDto?>(q => q.GetSeasonAsync(SeasonId, CancellationToken.None));
+        _fixture = _season?.Fixtures.FirstOrDefault(f => f.Id == Id);
+        _loaded = true;
+        if (_season is null || _fixture is null)
+        {
+            return;
+        }
+
+        // Start from the saved result, if there is one, so a correction only changes what is wrong.
+        _rows = [.. Enumerable.Range(1, _season.Rules.RubbersPerFixture).Select(n =>
+        {
+            var saved = _fixture.Rubbers.FirstOrDefault(r => r.Number == n);
+            return new RubberRow(n)
+            {
+                HomePlayerId = saved?.HomePlayerId,
+                AwayPlayerId = saved?.AwayPlayerId,
+                HomeScore = saved?.HomeScore ?? 0,
+                AwayScore = saved?.AwayScore ?? 0,
+            };
+        })];
+    }
+
+    private Task SaveAsync() =>
+        ActAsync<LeagueResults>(
+            r => r.RecordResultAsync(SeasonId, Id, [.. _rows.Select(x => new RubberResult(x.HomePlayerId!.Value, x.AwayPlayerId!.Value, x.HomeScore, x.AwayScore))]),
+            "Result saved. The table has been updated.");
+
+    private Task RescheduleAsync(DateTime? at)
+    {
+        DateTimeOffset? when = at is { } value ? new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)) : null;
+        return ActAsync<LeagueResults>(
+            r => r.RescheduleAsync(SeasonId, Id, when),
+            when is null ? "Fixture postponed." : $"Fixture moved to {Labels.When(when)}.");
+    }
+
+    private async Task ActAsync<TService>(Func<TService, Task> action, string success)
+        where TService : notnull
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            await Scopes.RunAsync(action);
+            (_message, _messageIsError) = (success, false);
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException)
+        {
+            (_message, _messageIsError) = (ex.Message, true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class RubberRow(int number)
+    {
+        public int Number { get; } = number;
+
+        public Guid? HomePlayerId { get; set; }
+
+        public Guid? AwayPlayerId { get; set; }
+
+        public int HomeScore { get; set; }
+
+        public int AwayScore { get; set; }
+    }
+}
