@@ -73,7 +73,7 @@ public static class DevelopmentSeeder
         db.RatingChanges.AddRange(changes);
 
         db.Leagues.Add(TuesdayLeague(club, venue, players));
-        db.Challenges.Add(AcceptedChallenge(players));
+        db.Challenges.AddRange(Challenges(club, players, ratings));
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -245,10 +245,20 @@ public static class DevelopmentSeeder
     private static Ranking NineBallRanking(Organisation owner) =>
         new(owner.Id, "Northland 9-ball rankings", Discipline.NineBall, "2026", [100, 75, 55, 40, 25, 15], participationPoints: 5);
 
-    private static Challenge AcceptedChallenge(List<Player> players)
+    /// <summary>
+    /// Two challenges at the club. Neither counts towards ratings, because the players' ratings are
+    /// still provisional, which shows how the anti-farming rules explain themselves.
+    /// </summary>
+    private static IEnumerable<Challenge> Challenges(Organisation club, List<Player> players, IReadOnlyList<Rating> ratings)
     {
-        var challenge = new Challenge(players[14].Id, players[15].Id, Discipline.Heyball, MatchLength.RaceTo(5));
-        challenge.Accept();
-        return challenge;
+        Rating? RatingOf(Player player, Discipline discipline) =>
+            ratings.SingleOrDefault(r => r.PlayerId == player.Id && r.Discipline == discipline);
+
+        Challenge Played(Player one, Player two, Discipline discipline, int score1, int score2, DateTimeOffset at) =>
+            new(club.Id, one.Id, two.Id, discipline, MatchLength.RaceTo(5), score1, score2, at,
+                ChallengeRules.Assess(RatingOf(one, discipline), RatingOf(two, discipline), at, []));
+
+        yield return Played(players[0], players[1], Discipline.NineBall, 5, 4, new DateTimeOffset(2026, 2, 6, 20, 15, 0, TimeSpan.Zero));
+        yield return Played(players[14], players[15], Discipline.Heyball, 3, 5, new DateTimeOffset(2026, 4, 10, 19, 45, 0, TimeSpan.Zero));
     }
 }

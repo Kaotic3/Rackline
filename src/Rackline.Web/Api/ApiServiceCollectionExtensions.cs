@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Rackline.Application.Challenges;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
 using Rackline.Application.Live;
@@ -37,6 +38,7 @@ internal static class ApiServiceCollectionExtensions
         services.AddScoped<OrganisationSetup>();
         services.AddScoped<StaffAppointments>();
         services.AddScoped<PlayerRegistry>();
+        services.AddScoped<ChallengeRecording>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<CurrentUser>();
@@ -102,7 +104,8 @@ internal static class ApiServiceCollectionExtensions
             .MapUserEndpoints()
             .MapLeagueEndpoints()
             .MapRankingEndpoints()
-            .MapOrganisationEndpoints();
+            .MapOrganisationEndpoints()
+            .MapChallengeEndpoints();
 
         app.MapHub<LiveHub>("/hubs/live");
 

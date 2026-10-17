@@ -26,8 +26,9 @@ internal sealed class RatingRepository(RacklineDbContext db) : IRatingRepository
 
     public void Add(RatingChange change) => db.RatingChanges.Add(change);
 
-    public async Task<IReadOnlyList<RatedResult>> ListRatedResultsAsync(CancellationToken cancellationToken) =>
-        await (
+    public async Task<IReadOnlyList<RatedResult>> ListRatedResultsAsync(CancellationToken cancellationToken)
+    {
+        var matches = await (
             from m in db.Matches.AsNoTracking()
             where m.State == MatchState.Completed && m.WinnerEntryId != null && m.LoserEntryId != null
             join t in db.Tournaments on m.TournamentId equals t.Id
@@ -36,6 +37,16 @@ internal sealed class RatingRepository(RacklineDbContext db) : IRatingRepository
             orderby m.CompletedAt, m.TournamentId, m.Number
             select new RatedResult(m.Id, t.Discipline, winner.PlayerId, loser.PlayerId, m.CompletedAt!.Value))
             .ToListAsync(cancellationToken);
+
+        // Challenges count only if they were judged to count when recorded; that decision is kept.
+        var challenges = await db.Challenges.AsNoTracking()
+            .Where(c => c.Rated)
+            .OrderBy(c => c.PlayedAt).ThenBy(c => c.Id)
+            .Select(c => new RatedResult(c.Id, c.Discipline, c.Score1 > c.Score2 ? c.Player1Id : c.Player2Id, c.Score1 > c.Score2 ? c.Player2Id : c.Player1Id, c.PlayedAt))
+            .ToListAsync(cancellationToken);
+
+        return [.. matches.Concat(challenges).OrderBy(r => r.At)];
+    }
 
     public async Task ReplaceAllAsync(IReadOnlyList<Rating> ratings, IReadOnlyList<RatingChange> changes, CancellationToken cancellationToken)
     {

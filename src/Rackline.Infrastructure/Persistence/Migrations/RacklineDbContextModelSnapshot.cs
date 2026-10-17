@@ -174,30 +174,35 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ChallengerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ChallengerScore")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Discipline")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid>("OpponentId")
+                    b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("OpponentScore")
+                    b.Property<DateTimeOffset>("PlayedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Player1Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Player2Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Rated")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Score1")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                    b.Property<int>("Score2")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UnratedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "MatchLength", "Rackline.Domain.Challenges.Challenge.MatchLength#MatchLength", b1 =>
                         {
@@ -216,11 +221,13 @@ namespace Rackline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChallengerId");
+                    b.HasIndex("OrganisationId");
 
-                    b.HasIndex("OpponentId");
+                    b.HasIndex("PlayedAt");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("Player2Id");
+
+                    b.HasIndex("Player1Id", "Player2Id", "Discipline");
 
                     b.ToTable("Challenges");
                 });
@@ -1016,15 +1023,21 @@ namespace Rackline.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Rackline.Domain.Challenges.Challenge", b =>
                 {
-                    b.HasOne("Rackline.Domain.Players.Player", null)
+                    b.HasOne("Rackline.Domain.Organisations.Organisation", null)
                         .WithMany()
-                        .HasForeignKey("ChallengerId")
+                        .HasForeignKey("OrganisationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Rackline.Domain.Players.Player", null)
                         .WithMany()
-                        .HasForeignKey("OpponentId")
+                        .HasForeignKey("Player1Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Rackline.Domain.Players.Player", null)
+                        .WithMany()
+                        .HasForeignKey("Player2Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

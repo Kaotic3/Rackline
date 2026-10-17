@@ -83,14 +83,21 @@ internal sealed class ChallengeConfiguration : IEntityTypeConfiguration<Challeng
             length.Property(l => l.Value).HasColumnName("MatchLengthValue");
         });
 
-        builder.HasOne<Player>().WithMany()
-            .HasForeignKey(c => c.ChallengerId)
+        builder.Property(c => c.UnratedReason).HasMaxLength(500);
+
+        builder.HasOne<Organisation>().WithMany()
+            .HasForeignKey(c => c.OrganisationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Player>().WithMany()
-            .HasForeignKey(c => c.OpponentId)
+            .HasForeignKey(c => c.Player1Id)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(c => c.Status);
+        builder.HasOne<Player>().WithMany()
+            .HasForeignKey(c => c.Player2Id)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(c => c.PlayedAt);
+        builder.HasIndex(c => new { c.Player1Id, c.Player2Id, c.Discipline });
     }
 }
