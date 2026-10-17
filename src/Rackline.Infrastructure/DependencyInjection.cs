@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
+using Rackline.Application.Leagues;
 using Rackline.Application.Players;
 using Rackline.Application.Tournaments;
 using Rackline.Application.Venues;
@@ -23,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<ITournamentQueries, TournamentQueries>();
         services.AddScoped<IPlayerQueries, PlayerQueries>();
         services.AddScoped<IVenueQueries, VenueQueries>();
+        services.AddScoped<ILeagueRepository, LeagueRepository>();
+        services.AddScoped<ILeagueQueries, LeagueQueries>();
         return services;
     }
 
