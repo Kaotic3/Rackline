@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rackline.Application\Rackline.Application.csproj" />
+    <ProjectReference Include="..\..\src\Rackline.Domain\Rackline.Domain.csproj" />
   </ItemGroup>
 
 </Project>
