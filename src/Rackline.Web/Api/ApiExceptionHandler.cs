@@ -10,7 +10,10 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problemDetails,
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var isApi = httpContext.Request.Path.StartsWithSegments("/api");
+        // Outside Development the request path has already been rewritten to the error page by the
+        // time handlers run, so use the path the request originally had.
+        var path = httpContext.Features.Get<IExceptionHandlerPathFeature>()?.Path ?? httpContext.Request.Path;
+        var isApi = path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) || path.Equals("/api", StringComparison.OrdinalIgnoreCase);
 
         (int Status, string Title, string? Detail)? problem = exception switch
         {
@@ -29,15 +32,18 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problemDetails,
 
         if (p.Status >= 500)
         {
-            logger.LogError(exception, "Unhandled exception for {Path}", httpContext.Request.Path);
+            logger.LogError(exception, "Unhandled exception for {Path}", path);
         }
 
         httpContext.Response.StatusCode = p.Status;
-        return await problemDetails.TryWriteAsync(new ProblemDetailsContext
+        var details = new ProblemDetails { Status = p.Status, Title = p.Title, Detail = p.Detail };
+        if (await problemDetails.TryWriteAsync(new ProblemDetailsContext { HttpContext = httpContext, Exception = exception, ProblemDetails = details }))
         {
-            HttpContext = httpContext,
-            Exception = exception,
-            ProblemDetails = new ProblemDetails { Status = p.Status, Title = p.Title, Detail = p.Detail },
-        });
+            return true;
+        }
+
+        // Belt and braces: API callers must get JSON even if the shared writer declines.
+        await httpContext.Response.WriteAsJsonAsync(details, (System.Text.Json.JsonSerializerOptions?)null, "application/problem+json", cancellationToken);
+        return true;
     }
 }

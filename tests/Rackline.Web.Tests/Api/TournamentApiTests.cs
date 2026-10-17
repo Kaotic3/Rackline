@@ -4,6 +4,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Application.Common;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
@@ -145,6 +148,30 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
         unknownRoute.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
         unknownPage.StatusCode.Should().Be(HttpStatusCode.NotFound);
         unknownPage.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
+    }
+
+    [PostgresFact]
+    public async Task Unexpected_api_errors_are_problem_json_without_internal_details()
+    {
+        // Outside Development the error page path is set, which once made API crashes return HTML.
+        var broken = api.WithWebHostBuilder(b => b.ConfigureServices(s =>
+            s.Replace(ServiceDescriptor.Scoped<ITournamentQueries, ExplodingTournamentQueries>())));
+
+        var response = await broken.CreateClient().GetAsync("/api/tournaments");
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("Kaboom", "internal details must not leak");
+    }
+
+    private sealed class ExplodingTournamentQueries : ITournamentQueries
+    {
+        public Task<IReadOnlyList<TournamentSummaryDto>> ListAsync(TournamentStatus? status, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Kaboom: secret internal detail");
+
+        public Task<TournamentDetailDto?> GetAsync(Guid id, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        public Task<Guid?> FindTournamentIdForMatchAsync(Guid matchId, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     [PostgresFact]
