@@ -295,7 +295,8 @@ public class SeederTests(PostgresDatabase database) : IClassFixture<PostgresData
         {
             (await db.Organisations.CountAsync()).Should().Be(4);
             (await db.Players.CountAsync()).Should().Be(16);
-            (await db.Tournaments.CountAsync()).Should().Be(3);
+            (await db.Tournaments.CountAsync()).Should().Be(4);
+            (await db.Tournaments.CountAsync(t => t.Status == TournamentStatus.Completed)).Should().Be(1);
             (await db.Matches.CountAsync(m => m.State == MatchState.Live)).Should().Be(1);
             (await db.Leagues.CountAsync()).Should().Be(1);
             (await db.Rankings.CountAsync()).Should().Be(1);

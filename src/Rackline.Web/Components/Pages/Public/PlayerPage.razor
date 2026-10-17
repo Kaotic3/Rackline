@@ -1,0 +1,85 @@
+@page "/players/{Id:guid}"
+@inject IPlayerQueries Queries
+@inject NavigationManager Navigation
+
+@if (_player is { } p)
+{
+    <PageTitle>@p.DisplayName · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{p.DisplayName}: record, recent results and ratings.")" /></HeadContent>
+
+    <p><a href="/players">← Players</a></p>
+    <h1>@p.DisplayName</h1>
+    <p class="muted">
+        @p.Nationality@(p.LicenceNumber is null ? "" : $" · Licence {p.LicenceNumber}")
+        @if (p.Organisations.Count > 0)
+        {
+            <span> · @string.Join(", ", p.Organisations)</span>
+        }
+    </p>
+
+    <RecordTiles Record="_record!" />
+
+    @if (p.Ratings.Count > 0)
+    {
+        <section>
+            <h2>Ratings</h2>
+            <ul class="entry-list">
+                @foreach (var rating in p.Ratings)
+                {
+                    <li>@Labels.Of(rating.Discipline): <strong>@Labels.Rating(rating.Value)</strong> <span class="muted">(@rating.MatchesPlayed rated matches)</span></li>
+                }
+            </ul>
+        </section>
+    }
+
+    <section>
+        <h2>Compare with another player</h2>
+        <form method="get" action="/head-to-head" class="row">
+            <input type="hidden" name="a" value="@p.Id" />
+            <label class="grow">
+                <span class="visually-hidden">Opponent</span>
+                <select name="b">
+                    @foreach (var other in _others)
+                    {
+                        <option value="@other.Id">@other.DisplayName</option>
+                    }
+                </select>
+            </label>
+            <button class="button" type="submit">Head-to-head</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>Recent matches</h2>
+        <MatchHistory Matches="_matches.Take(20).ToList()" />
+    </section>
+}
+
+@code {
+    private PlayerProfileDto? _player;
+    private IReadOnlyList<PlayedMatchDto> _matches = [];
+    private IReadOnlyList<PlayerSummaryDto> _others = [];
+    private PlayerRecord? _record;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _player = await Queries.GetProfileAsync(Id, CancellationToken.None);
+        if (_player is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _matches = await Queries.GetPlayedMatchesAsync(Id, CancellationToken.None);
+        _record = PlayerRecord.From(_matches);
+
+        // Opponents already met come first, as they are the likeliest comparison.
+        var met = _matches.Select(m => m.OpponentPlayerId).ToHashSet();
+        _others = [.. (await Queries.ListAsync(null, CancellationToken.None))
+            .Where(x => x.Id != Id)
+            .OrderByDescending(x => met.Contains(x.Id))];
+    }
+}

@@ -1,0 +1,44 @@
+@* Knockout draws: one column per round. Double elimination adds the losers' bracket and the grand final. *@
+@foreach (var (title, side) in Sections)
+{
+    var rounds = Tournament.Matches
+        .Where(m => m.Side == side && !m.IsVoid())
+        .GroupBy(m => m.Round)
+        .OrderBy(g => g.Key)
+        .ToList();
+    if (rounds.Count == 0)
+    {
+        continue;
+    }
+
+    <section>
+        @if (title is not null)
+        {
+            <h2>@title</h2>
+        }
+        <div class="bracket" role="list">
+            @foreach (var round in rounds)
+            {
+                <div class="bracket-round" role="listitem">
+                    <h3>@MatchText.Round(Tournament, round.First())</h3>
+                    <div class="bracket-matches">
+                        @foreach (var match in round.OrderBy(m => m.Position))
+                        {
+                            <MatchCard Tournament="Tournament" Match="match" />
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = default!;
+
+    private IEnumerable<(string? Title, BracketSide Side)> Sections =>
+        Tournament.Format == TournamentFormat.DoubleElimination
+            ? [("Winners' bracket", BracketSide.Winners), ("Losers' bracket", BracketSide.Losers), ("Grand final", BracketSide.GrandFinal)]
+            : [("Draw", BracketSide.Winners)];
+}

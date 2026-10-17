@@ -1,0 +1,21 @@
+@page "/tournaments"
+@inject ITournamentQueries Queries
+
+<PageTitle>Tournaments · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Cue sports tournaments: live, coming up and finished, with draws and results." /></HeadContent>
+
+<h1>Tournaments</h1>
+
+<TournamentSection Title="In progress" Tournaments="InStatus(TournamentStatus.InProgress)" Empty="Nothing is being played at the moment." />
+<TournamentSection Title="Coming up" Tournaments="InStatus(TournamentStatus.Registration, TournamentStatus.Drawn)" Empty="No tournaments are taking entries." />
+<TournamentSection Title="Finished" Tournaments="InStatus(TournamentStatus.Completed, TournamentStatus.Cancelled)" Empty="No finished tournaments yet." />
+
+@code {
+    private IReadOnlyList<TournamentSummaryDto> _all = [];
+
+    protected override async Task OnInitializedAsync() => _all = await Queries.ListAsync(null, CancellationToken.None);
+
+    // Drafts are not public until registration opens.
+    private IReadOnlyList<TournamentSummaryDto> InStatus(params TournamentStatus[] statuses) =>
+        [.. _all.Where(t => statuses.Contains(t.Status))];
+}

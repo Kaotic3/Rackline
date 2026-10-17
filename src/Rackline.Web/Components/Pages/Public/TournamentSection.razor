@@ -1,0 +1,32 @@
+<section>
+    <h2>@Title</h2>
+    @if (Tournaments.Count == 0)
+    {
+        <p class="muted">@Empty</p>
+    }
+    else
+    {
+        <ul class="cards">
+            @foreach (var t in Tournaments)
+            {
+                <li>
+                    <a href="/tournaments/@t.Id">
+                        <strong>@t.Name</strong>
+                        <span class="muted">@Labels.Of(t.Discipline) · @Labels.Of(t.Format) · @t.EntryCount entries@(t.Status == TournamentStatus.Cancelled ? " · Cancelled" : "")</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TournamentSummaryDto> Tournaments { get; set; } = [];
+
+    [Parameter]
+    public string Empty { get; set; } = "";
+}

@@ -1,0 +1,85 @@
+@page "/matches/{Id:guid}"
+@using Rackline.Application.Venues
+@inject ITournamentQueries Queries
+@inject IVenueQueries Venues
+@inject NavigationManager Navigation
+
+@if (_tournament is { } t && _match is { } m)
+{
+    <PageTitle>@Name(1) v @Name(2) · @t.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{Name(1)} v {Name(2)}, {MatchText.Round(t, m)} of {t.Name}.")" /></HeadContent>
+
+    <div data-live-match="@(m.State is MatchState.Live or MatchState.Ready ? m.Id.ToString() : null)">
+        <p><a href="/tournaments/@t.Id">← @t.Name</a></p>
+        <h1>@MatchText.Round(t, m)</h1>
+        <p class="muted">
+            Match @m.Number · @MatchText.Length(t.MatchLength)@(_table is null ? "" : $" · {_table}")
+            @if (m.State is MatchState.Live or MatchState.Ready)
+            {
+                <span> · <span class="live-status" data-live-status>Connecting…</span></span>
+            }
+        </p>
+
+        <section class="scoreboard public" data-match="@m.Id" data-state="@m.State" data-e1="@m.Slot1.EntryId" data-e2="@m.Slot2.EntryId">
+            @foreach (var slot in new[] { 1, 2 })
+            {
+                var side = slot == 1 ? m.Slot1 : m.Slot2;
+                <div class="side @(side.EntryId is not null && side.EntryId == m.WinnerEntryId ? "winner" : "")">
+                    <span class="name"><PlayerName Tournament="t" Slot="side" /></span>
+                    <span class="score @(slot == 1 ? "js-score1" : "js-score2")">@(slot == 1 ? m.Score1 : m.Score2)</span>
+                    <span class="muted">Break and runs: <span class="@(slot == 1 ? "js-bnr1" : "js-bnr2")">@(slot == 1 ? m.BreakAndRuns1 : m.BreakAndRuns2)</span></span>
+                </div>
+            }
+        </section>
+
+        <p class="match-status">@Status(t, m)</p>
+    </div>
+}
+
+@code {
+    private TournamentDetailDto? _tournament;
+    private MatchDto? _match;
+    private string? _table;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Queries.FindTournamentIdForMatchAsync(Id, CancellationToken.None) is { } tournamentId)
+        {
+            _tournament = await Queries.GetAsync(tournamentId, CancellationToken.None);
+            _match = _tournament?.Matches.SingleOrDefault(m => m.Id == Id);
+        }
+
+        if (_tournament is null || _match is null || _tournament.Status == TournamentStatus.Draft)
+        {
+            _tournament = null;
+            Navigation.NotFound();
+            return;
+        }
+
+        if (_match.TableId is { } tableId)
+        {
+            var table = (await Venues.ListTablesAsync(CancellationToken.None)).FirstOrDefault(x => x.Id == tableId);
+            _table = table is null ? null : $"{table.VenueName}, {table.Label}";
+        }
+    }
+
+    private string Name(int slot) => MatchText.Player(_tournament!, slot == 1 ? _match!.Slot1 : _match!.Slot2);
+
+    private static string Status(TournamentDetailDto t, MatchDto m)
+    {
+        var winner = m.WinnerEntryId is { } id ? t.Entries.FirstOrDefault(e => e.Id == id)?.PlayerName : null;
+        return m.State switch
+        {
+            MatchState.Live => $"Live since {m.StartedAt:HH:mm} UTC.",
+            MatchState.Ready => "Waiting to start.",
+            MatchState.Pending => "Waiting for earlier matches to finish.",
+            MatchState.Completed => $"{winner} won {Math.Max(m.Score1, m.Score2)}–{Math.Min(m.Score1, m.Score2)} on {Labels.Date(m.CompletedAt)}.",
+            MatchState.Walkover when m.IsByeLike() => $"{winner} had a bye.",
+            MatchState.Walkover => $"{winner} won on a walkover.",
+            _ => "",
+        };
+    }
+}

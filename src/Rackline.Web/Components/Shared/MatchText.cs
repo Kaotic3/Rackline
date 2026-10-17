@@ -38,3 +38,14 @@ public static class MatchText
         };
     }
 }
+
+public static class MatchDtoExtensions
+{
+    /// <summary>Settled without play because one or both slots were byes.</summary>
+    public static bool IsByeLike(this MatchDto match) =>
+        match.State == MatchState.Walkover && (match.Slot1.Kind == MatchSlotKind.Bye || match.Slot2.Kind == MatchSlotKind.Bye);
+
+    /// <summary>Neither slot will ever hold a player: an empty bye pairing or an unused grand-final reset.</summary>
+    public static bool IsVoid(this MatchDto match) =>
+        match.State == MatchState.Walkover && match.Slot1.Kind == MatchSlotKind.Bye && match.Slot2.Kind == MatchSlotKind.Bye;
+}

@@ -1,16 +1,46 @@
 @page "/"
+@inject ITournamentQueries Queries
 
 <PageTitle>Rackline</PageTitle>
+<HeadContent><meta name="description" content="Tournaments, live scoring and results for cue sports, with no adverts." /></HeadContent>
 
 <h1>Rackline</h1>
 
 <p class="lead">Tournaments, live scoring and results for cue sports, with no adverts.</p>
 
-<AuthorizeView Policy="@Policies.ScoreMatches">
-    <Authorized>
-        <p><a class="button" href="/referee">Go to scoring</a></p>
-    </Authorized>
-    <NotAuthorized>
-        <p>Referees and organisers can <a href="/account/login">sign in</a> to score matches.</p>
-    </NotAuthorized>
-</AuthorizeView>
+<section>
+    <h2>On now</h2>
+    @if (_live.Count == 0)
+    {
+        <p class="muted">Nothing is being played at the moment. <a href="/tournaments">See all tournaments</a>.</p>
+    }
+    else
+    {
+        <ul class="cards">
+            @foreach (var t in _live)
+            {
+                <li>
+                    <a href="/tournaments/@t.Id">
+                        <strong>@t.Name</strong>
+                        <span class="muted">@Labels.Of(t.Discipline) · @Labels.Of(t.Format)</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+<p class="row">
+    <a class="button" href="/tournaments">All tournaments</a>
+    <a class="button secondary" href="/players">Players</a>
+    <AuthorizeView Policy="@Policies.ScoreMatches">
+        <a class="button secondary" href="/referee">Scoring</a>
+    </AuthorizeView>
+</p>
+
+@code {
+    private IReadOnlyList<TournamentSummaryDto> _live = [];
+
+    protected override async Task OnInitializedAsync() =>
+        _live = await Queries.ListAsync(TournamentStatus.InProgress, CancellationToken.None);
+}
