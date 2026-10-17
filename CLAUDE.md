@@ -2,7 +2,7 @@
 
 ## Project
 
-**Rackline** (working name, may change) is an ad-free web platform for running cue sports competitions: tournaments, leagues, live scoring, rankings and player records.
+**Rackline** (working name, may change) is a free, ad-free web platform for running cue sports competitions: tournaments, leagues, live scoring, rankings and player records.
 
 It is an independent, clean-room implementation of generic tournament-management functionality.
 
@@ -12,6 +12,7 @@ It is an independent, clean-room implementation of generic tournament-management
 - Do **not** scrape, import or call third-party platforms' data or APIs.
 - All seed and test data must be invented.
 - No adverts, ad SDKs or third-party tracking scripts.
+- No payments: the platform is entirely free. Do not add payment providers, entry-fee collection or paid tiers.
 - UI text uses **British English** (e.g. "organiser", "colour", "cancelled").
 
 ## Stack
@@ -99,7 +100,7 @@ Bracket generation must be **pure, deterministic** domain code. Randomness is in
 6. **M6 – Leagues**: seasons, teams, fixtures, tables.
 7. **M7 – Rankings and ratings**
 8. **M8 – Organisation hierarchy and permissions**
-9. **M9 – Payments** (Stripe entry fees). Do not start without explicit instruction.
+9. ~~**M9 – Payments**~~ Dropped: the platform is entirely free (see Legal constraints).
 10. **M10 – Extras**
     - Public read-only API.
     - OBS streaming overlay page (transparent scoreboard).
