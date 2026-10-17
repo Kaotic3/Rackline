@@ -1,0 +1,138 @@
+@page "/organiser/organisations/{Id:guid}/staff"
+@attribute [Authorize(Policy = Policies.ManageOrganisations)]
+@rendermode InteractiveServer
+@using Rackline.Domain.Common
+@inject IServiceScopeFactory Scopes
+
+<PageTitle>Staff · Rackline</PageTitle>
+
+@if (_organisation is null)
+{
+    <p>@(_loaded ? "This organisation could not be found." : "Loading…")</p>
+}
+else
+{
+    <p><a href="/organisations/@Id">← @_organisation.Name</a></p>
+    <h1>Staff</h1>
+    <p class="muted">
+        Organisers run events here and below, and can appoint staff. Referees start matches and record results.
+        Staff appointed at an organisation above this one can act here too.
+    </p>
+
+    @if (_message is not null)
+    {
+        <p class="@(_messageIsError ? "alert" : "notice")" role="status">@_message</p>
+    }
+
+    @if (_staff is { } staff)
+    {
+        @if (staff.Count == 0)
+        {
+            <p class="muted">Nobody is appointed here yet.</p>
+        }
+        else
+        {
+            <ul class="staff-list">
+                @foreach (var member in staff)
+                {
+                    <li>
+                        <span><strong>@member.Email</strong> <span class="muted">· @Labels.Of(member.Role)</span></span>
+                        <button class="button secondary" disabled="@_busy" @onclick="() => RemoveAsync(member)">Remove</button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <section>
+            <h2>Appoint someone</h2>
+            <p class="muted">They need a Rackline account first. If they already have a role here, it is changed.</p>
+            <form class="row" @onsubmit="AppointAsync">
+                <label class="grow">
+                    Email
+                    <input type="email" required @bind="_email" disabled="@_busy" autocomplete="off" />
+                </label>
+                <label>
+                    Role
+                    <select @bind="_role" disabled="@_busy">
+                        <option value="@StaffRole.Referee">@Labels.Of(StaffRole.Referee)</option>
+                        <option value="@StaffRole.Organiser">@Labels.Of(StaffRole.Organiser)</option>
+                    </select>
+                </label>
+                <button class="button" type="submit" disabled="@_busy">Appoint</button>
+            </form>
+        </section>
+    }
+}
+
+@code {
+    private OrganisationDetailDto? _organisation;
+    private IReadOnlyList<StaffDto>? _staff;
+    private string _email = "";
+    private StaffRole _role = StaffRole.Referee;
+    private bool _busy;
+    private bool _loaded;
+    private string? _message;
+    private bool _messageIsError;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _organisation = await Scopes.RunAsync<IOrganisationQueries, OrganisationDetailDto?>(q => q.GetAsync(Id, CancellationToken.None));
+        _loaded = true;
+        if (_organisation is not null)
+        {
+            await ActAsync(LoadStaffAsync, success: null);
+        }
+    }
+
+    private async Task LoadStaffAsync(StaffAppointments staff) => _staff = await staff.ListAsync(Id);
+
+    private Task AppointAsync()
+    {
+        var email = _email.Trim();
+        return ActAsync(async staff =>
+        {
+            await staff.AppointAsync(Id, email, _role);
+            await LoadStaffAsync(staff);
+            _email = "";
+        }, $"{email} is now {(_role == StaffRole.Organiser ? "an organiser" : "a referee")} here.");
+    }
+
+    private Task RemoveAsync(StaffDto member) =>
+        ActAsync(async staff =>
+        {
+            await staff.RemoveAsync(Id, member.UserId);
+            await LoadStaffAsync(staff);
+        }, $"{member.Email} is no longer {(member.Role == StaffRole.Organiser ? "an organiser" : "a referee")} here.");
+
+    private async Task ActAsync(Func<StaffAppointments, Task> action, string? success)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            await Scopes.RunAsAsync((await AuthenticationState).User, action);
+            if (success is not null)
+            {
+                (_message, _messageIsError) = (success, false);
+            }
+        }
+        catch (NotFoundException ex) when (ex.Resource == "User")
+        {
+            (_message, _messageIsError) = ("Nobody has an account with that email address.", true);
+        }
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException or ForbiddenException)
+        {
+            (_message, _messageIsError) = (ex.Message, true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

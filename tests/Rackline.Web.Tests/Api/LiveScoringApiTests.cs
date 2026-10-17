@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Live;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
@@ -27,8 +28,8 @@ public class LiveScoringApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     private async Task<(HttpClient Referee, TournamentDetailDto Tournament)> LiveMatchAsync()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(4);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
-        var referee = await api.ClientForAsync(Roles.Referee);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
+        var referee = await api.ClientForAsync(StaffRole.Referee);
 
         var created = await organiser.PostAsJsonAsync("/api/tournaments", new
         {
@@ -175,7 +176,7 @@ public class LiveScoringApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task Status_changes_are_announced_to_the_tournament()
     {
         var (organisationId, _, players) = await api.AddReferenceDataAsync(2);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var created = await organiser.PostAsJsonAsync("/api/tournaments", new
         {
             organisationId, name = "Status Cup", discipline = "TenBall", format = "RoundRobin", matchLengthKind = "RaceTo", matchLengthValue = 2,

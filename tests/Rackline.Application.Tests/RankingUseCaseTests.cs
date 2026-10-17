@@ -31,12 +31,12 @@ public class RankingUseCaseTests
     public RankingUseCaseTests()
     {
         _references.Organisations.Add(_organisationId);
-        _lifecycle = new TournamentLifecycle(_tournaments, _references, _rankings, _notifier);
-        _entries = new TournamentEntries(_tournaments, _references, _notifier);
-        _draws = new TournamentDraws(_tournaments, _notifier);
-        _results = new MatchResults(_tournaments, _references, _ratings, _notifier, _time);
-        _scoring = new LiveScoring(_tournaments, _ratings, _notifier, _time);
-        _setup = new RankingSetup(_rankings, _references);
+        _lifecycle = new TournamentLifecycle(_tournaments, _references, _rankings, Access.Admin(), _notifier);
+        _entries = new TournamentEntries(_tournaments, _references, Access.Admin(), _notifier);
+        _draws = new TournamentDraws(_tournaments, Access.Admin(), _notifier);
+        _results = new MatchResults(_tournaments, _references, _ratings, Access.Admin(), _notifier, _time);
+        _scoring = new LiveScoring(_tournaments, _ratings, Access.Admin(), _notifier, _time);
+        _setup = new RankingSetup(_rankings, _references, Access.Admin());
     }
 
     private static TournamentSettings Settings(Guid? rankingId = null, Discipline discipline = Discipline.NineBall) =>

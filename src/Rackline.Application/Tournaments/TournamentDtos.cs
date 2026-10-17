@@ -26,7 +26,10 @@ public sealed record TournamentDetailDto(
     IReadOnlyList<EntryDto> Entries,
     IReadOnlyList<MatchDto> Matches,
     Guid? RankingId = null,
-    string? RankingName = null);
+    string? RankingName = null)
+{
+    public string? OrganisationName { get; init; }
+}
 
 public sealed record MatchLengthDto(MatchLengthKind Kind, int Value)
 {

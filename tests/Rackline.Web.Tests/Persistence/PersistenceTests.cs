@@ -190,7 +190,7 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
 
         var ranking = new Ranking(organisation.Id, "Round Trip Rankings", Discipline.EnglishEightBall, "2027", [40, 25], participationPoints: 5);
         var rankedTournament = new Tournament(organisation.Id, "Ranked Open", Discipline.EnglishEightBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(3));
-        rankedTournament.CountTowards(ranking);
+        rankedTournament.CountTowards(ranking, new OrganisationLineage(organisation.Id, new Dictionary<Guid, Guid?> { [organisation.Id] = null }));
         ranking.AwardTournament(rankedTournament.Id, [(players[0].Id, 2), (players[1].Id, 1)]);
 
         var rating = new Rating(players[2].Id, Discipline.EnglishEightBall);

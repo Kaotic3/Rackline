@@ -1,0 +1,24 @@
+@page "/organisations"
+@inject IOrganisationQueries Queries
+
+<PageTitle>Organisations · Rackline</PageTitle>
+<HeadContent><meta name="description" content="The bodies, regions and clubs that run cue sports events." /></HeadContent>
+
+<h1>Organisations</h1>
+
+<p>Each organisation runs its own events and looks after the organisations below it.</p>
+
+@if (_all.Count == 0)
+{
+    <p class="notice">There are no organisations yet.</p>
+}
+else
+{
+    <OrganisationTree All="_all" ParentId="null" />
+}
+
+@code {
+    private IReadOnlyList<OrganisationSummaryDto> _all = [];
+
+    protected override async Task OnInitializedAsync() => _all = await Queries.ListAsync(CancellationToken.None);
+}

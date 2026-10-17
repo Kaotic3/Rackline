@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
 using Rackline.Domain.Tournaments;
@@ -43,7 +44,7 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     private async Task<(HttpClient Organiser, TournamentDetailDto Tournament, List<Guid> Players)> RegisteredTournamentAsync(int players)
     {
         var (organisationId, _, playerIds) = await api.AddReferenceDataAsync(players);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
 
         var created = await organiser.PostAsJsonAsync("/api/tournaments", NewTournament(organisationId));
         var tournament = await ReadAsync<TournamentDetailDto>(created);
@@ -62,8 +63,8 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task An_organiser_and_a_referee_can_run_a_whole_tournament()
     {
         var (organisationId, tableId, players) = await api.AddReferenceDataAsync(5);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
-        var referee = await api.ClientForAsync(Roles.Referee);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
+        var referee = await api.ClientForAsync(StaffRole.Referee);
 
         var created = await organiser.PostAsJsonAsync("/api/tournaments", NewTournament(organisationId));
         created.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -115,7 +116,7 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     {
         var (organisationId, _, _) = await api.AddReferenceDataAsync(0);
         var anonymous = api.CreateClient();
-        var referee = await api.ClientForAsync(Roles.Referee);
+        var referee = await api.ClientForAsync(StaffRole.Referee);
         var player = await api.ClientForAsync(Roles.Player);
         var admin = await api.ClientForAsync(Roles.Admin);
 
@@ -190,7 +191,7 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     public async Task Invalid_requests_are_rejected_with_validation_problems()
     {
         var (organisationId, _, _) = await api.AddReferenceDataAsync(0);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
 
         var noName = await organiser.PostAsJsonAsync("/api/tournaments", new
         {
@@ -215,7 +216,7 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
     [PostgresFact]
     public async Task Missing_things_are_not_found()
     {
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         var (_, tournament, _) = await RegisteredTournamentAsync(0);
 
         var noTournament = await organiser.GetAsync($"/api/tournaments/{Guid.NewGuid()}");

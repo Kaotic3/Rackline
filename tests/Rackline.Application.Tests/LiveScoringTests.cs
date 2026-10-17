@@ -19,7 +19,7 @@ public class LiveScoringTests
 
     public LiveScoringTests()
     {
-        _scoring = new LiveScoring(_tournaments, new InMemoryRatings(), _notifier, _time);
+        _scoring = new LiveScoring(_tournaments, new InMemoryRatings(), Access.Admin(), _notifier, _time);
 
         _tournament = new Tournament(Guid.CreateVersion7(), "Friday Frames", Discipline.EnglishEightBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(2));
         _tournament.OpenRegistration();

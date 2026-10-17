@@ -108,6 +108,9 @@ else
     [Parameter]
     public Guid SeasonId { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
     [Parameter]
     public Guid Id { get; set; }
 
@@ -163,11 +166,11 @@ else
         _message = null;
         try
         {
-            await Scopes.RunAsync(action);
+            await Scopes.RunAsAsync((await AuthenticationState).User, action);
             (_message, _messageIsError) = (success, false);
             await LoadAsync();
         }
-        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException)
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException or ForbiddenException)
         {
             (_message, _messageIsError) = (ex.Message, true);
         }

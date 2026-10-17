@@ -1,6 +1,7 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
 using Rackline.Application.Rankings;
+using Rackline.Domain.Organisations;
 
 namespace Rackline.Application.Tournaments;
 
@@ -8,7 +9,12 @@ namespace Rackline.Application.Tournaments;
 /// Frame-by-frame scoring from the table, broadcast to live viewers. The deciding frame completes the
 /// match, which is rated in the same save.
 /// </summary>
-public sealed class LiveScoring(ITournamentRepository tournaments, IRatingRepository ratings, ILiveNotifier notifier, TimeProvider time)
+public sealed class LiveScoring(
+    ITournamentRepository tournaments,
+    IRatingRepository ratings,
+    OrganisationAccess access,
+    ILiveNotifier notifier,
+    TimeProvider time)
 {
     public async Task RecordFrameAsync(
         Guid tournamentId,
@@ -20,6 +26,7 @@ public sealed class LiveScoring(ITournamentRepository tournaments, IRatingReposi
         CancellationToken cancellationToken = default)
     {
         var tournament = await tournaments.GetWithMatchAsync(tournamentId, matchNumber, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Referee, cancellationToken);
         var changes = MatchChanges.Capture(tournament);
         var rated = RatingUpdates.RatedSoFar(tournament);
 
@@ -32,6 +39,7 @@ public sealed class LiveScoring(ITournamentRepository tournaments, IRatingReposi
     public async Task UndoLastFrameAsync(Guid tournamentId, int matchNumber, CancellationToken cancellationToken = default)
     {
         var tournament = await tournaments.GetWithMatchAsync(tournamentId, matchNumber, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Referee, cancellationToken);
         var changes = MatchChanges.Capture(tournament);
 
         tournament.UndoLastFrame(matchNumber);

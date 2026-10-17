@@ -21,8 +21,8 @@ public class LeagueUseCaseTests
     public LeagueUseCaseTests()
     {
         _references.Organisations.Add(_organisationId);
-        _setup = new LeagueSetup(_leagues, _references);
-        _results = new LeagueResults(_leagues, _time);
+        _setup = new LeagueSetup(_leagues, _references, Access.Admin());
+        _results = new LeagueResults(_leagues, Access.Admin(), _time);
     }
 
     private Guid NewPlayer()

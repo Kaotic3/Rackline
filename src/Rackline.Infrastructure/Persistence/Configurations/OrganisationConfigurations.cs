@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
+using Rackline.Infrastructure.Identity;
 
 namespace Rackline.Infrastructure.Persistence.Configurations;
 
@@ -60,5 +61,23 @@ internal sealed class PlayerConfiguration : IEntityTypeConfiguration<Player>
 
         builder.HasIndex(p => new { p.LastName, p.FirstName });
         builder.HasIndex(p => p.LicenceNumber);
+    }
+}
+
+internal sealed class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
+{
+    public void Configure(EntityTypeBuilder<Appointment> builder)
+    {
+        // One role per user per organisation; a change of role updates the row.
+        builder.HasIndex(a => new { a.OrganisationId, a.UserId }).IsUnique();
+        builder.HasIndex(a => a.UserId);
+
+        builder.HasOne<Organisation>().WithMany()
+            .HasForeignKey(a => a.OrganisationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(a => a.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

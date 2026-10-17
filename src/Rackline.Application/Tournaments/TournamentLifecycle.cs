@@ -1,6 +1,7 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
 using Rackline.Domain.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Rankings;
 using Rackline.Domain.Standings;
 using Rackline.Domain.Tournaments;
@@ -15,6 +16,7 @@ public sealed class TournamentLifecycle(
     ITournamentRepository tournaments,
     IReferenceData references,
     IRankingRepository rankings,
+    OrganisationAccess access,
     ILiveNotifier notifier)
 {
     public async Task<Guid> CreateAsync(Guid organisationId, TournamentSettings settings, CancellationToken cancellationToken = default)
@@ -24,9 +26,10 @@ public sealed class TournamentLifecycle(
             throw new NotFoundException("Organisation", organisationId);
         }
 
+        await access.EnsureAsync(organisationId, StaffRole.Organiser, cancellationToken);
         var tournament = new Tournament(
             organisationId, settings.Name, settings.Discipline, settings.Format, settings.ToMatchLength(), settings.ToOptions());
-        tournament.CountTowards(await FindRankingAsync(settings.RankingId, cancellationToken));
+        await CountTowardsAsync(tournament, settings.RankingId, cancellationToken);
         tournaments.Add(tournament);
         await tournaments.SaveChangesAsync(cancellationToken);
         return tournament.Id;
@@ -35,18 +38,21 @@ public sealed class TournamentLifecycle(
     public Task UpdateAsync(Guid id, TournamentSettings settings, CancellationToken cancellationToken = default) =>
         ApplyAsync(id, async t =>
         {
-            var ranking = await FindRankingAsync(settings.RankingId, cancellationToken);
-
             // The settings replace everything, so leave the old ranking before any change of discipline.
             t.Rename(settings.Name);
-            t.CountTowards(null);
+            if (settings.RankingId != t.RankingId)
+            {
+                t.LeaveRanking();
+            }
+
             t.Reconfigure(settings.Discipline, settings.Format, settings.ToMatchLength(), settings.ToOptions());
-            t.CountTowards(ranking);
+            await CountTowardsAsync(t, settings.RankingId, cancellationToken);
         }, cancellationToken);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var tournament = await tournaments.GetAsync(id, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Organiser, cancellationToken);
         if (!tournament.CanBeDeleted)
         {
             throw new DomainException("A tournament with a draw in play cannot be deleted. Cancel it first.");
@@ -86,9 +92,26 @@ public sealed class TournamentLifecycle(
     private async Task ApplyAsync(Guid id, Func<Tournament, Task> change, CancellationToken cancellationToken)
     {
         var tournament = await tournaments.GetAsync(id, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Organiser, cancellationToken);
         await change(tournament);
         await tournaments.SaveChangesAsync(cancellationToken);
         await notifier.TournamentChangedAsync(id, tournament.Status, cancellationToken);
+    }
+
+    /// <summary>
+    /// Joins the ranking, which may belong to an organisation above the tournament's. Choosing a
+    /// ranking needs organiser rights over the ranking's organisation too, so a club cannot put its
+    /// own events into a national ranking. Keeping the current ranking needs no extra rights.
+    /// </summary>
+    private async Task CountTowardsAsync(Tournament tournament, Guid? rankingId, CancellationToken cancellationToken)
+    {
+        var ranking = await FindRankingAsync(rankingId, cancellationToken);
+        if (ranking is not null && ranking.Id != tournament.RankingId)
+        {
+            await access.EnsureAsync(ranking.OrganisationId, StaffRole.Organiser, cancellationToken);
+        }
+
+        tournament.CountTowards(ranking, await access.LineageAsync(tournament.OrganisationId, cancellationToken));
     }
 
     private async Task<Ranking?> FindRankingAsync(Guid? rankingId, CancellationToken cancellationToken) =>

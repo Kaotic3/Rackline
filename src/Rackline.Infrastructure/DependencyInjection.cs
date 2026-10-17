@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
+using Rackline.Application.Organisations;
 using Rackline.Application.Players;
 using Rackline.Application.Rankings;
 using Rackline.Application.Tournaments;
@@ -31,6 +32,11 @@ public static class DependencyInjection
         services.AddScoped<IRatingRepository, RatingRepository>();
         services.AddScoped<IRankingQueries, RankingQueries>();
         services.AddScoped<IRatingQueries, RatingQueries>();
+        services.AddScoped<IOrganisationDirectory, OrganisationDirectory>();
+        services.AddScoped<IOrganisationRepository, OrganisationRepository>();
+        services.AddScoped<IPlayerRepository, PlayerRepository>();
+        services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<IOrganisationQueries, OrganisationQueries>();
         return services;
     }
 

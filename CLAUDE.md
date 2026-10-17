@@ -222,7 +222,7 @@ _(Append decisions here as they are made.)_
   - Domain-generated ids are configured `ValueGeneratedNever`.
   - `MatchLength`, `FormatOptions`, `MatchSlot` and the optional `SlotLink` are EF complex properties, stored as columns on the owning table.
   - `Frame`, `Rubber` and `RankingEntry` are owned tables with composite keys.
-  - Player organisation memberships and team rosters are `uuid[]` columns with GIN indexes, not join tables. Revisit in M8 if permissions need more.
+  - Player organisation memberships and team rosters are `uuid[]` columns with GIN indexes, not join tables. (M8 kept them: staff permissions use a separate `Appointments` table.)
   - The entry ids in match slots and results are indexed, but they are not foreign keys.
 - **Delete rules**
   - Children inside an aggregate cascade.
@@ -260,7 +260,7 @@ _(Append decisions here as they are made.)_
   - `ManageTournaments` (Admin or Organiser) covers tournament create, update and delete, entries, seeding, the draw and status changes.
   - `ScoreMatches` (Admin, Organiser or Referee) covers starting a match, results and walkovers.
   - `ManageUsers` (Admin only) covers listing users and setting roles.
-  - Any Organiser can manage any tournament until per-organisation permissions arrive in M8.
+  - Any Organiser can manage any tournament until per-organisation permissions arrive in M8. (Superseded in M8: organisers and referees are appointed per organisation.)
 - **Endpoints** (all under `/api`)
   - `tournaments`: `GET` (list, with `?status=`), `GET {id}`, `POST`, `PUT {id}` and `DELETE {id}`.
     - Status changes: `POST {id}/open-registration`, `/start`, `/complete` and `/cancel`.
@@ -483,7 +483,7 @@ _(Append decisions here as they are made.)_
   - The final tie-break in group tables (domain and public pages) is now seed, then entry id, as the draw order is not stored.
 - **Rankings**
   - A ranking has a name, an organisation, a discipline, a season, points for 1st, 2nd and so on (up to 64 places), and points for everyone below that. Points may never rise for a lower place.
-  - A tournament counts towards at most one ranking, set by `rankingId` on create or update, before the draw. It must be the same organisation and discipline. A national ranking taking regional events waits for the hierarchy in M8.
+  - A tournament counts towards at most one ranking, set by `rankingId` on create or update, before the draw. It must be the same organisation and discipline. A national ranking taking regional events waits for the hierarchy in M8. (Done in M8.)
   - Points are awarded when the tournament is completed, in the same save. Cancelled tournaments award nothing.
   - Awards are stored per tournament and player (`RankingAwards`, keyed by ranking, tournament and player), so a tournament can count only once, and the table can be explained.
   - The table totals the points. Players on equal points share a position.
@@ -504,3 +504,51 @@ _(Append decisions here as they are made.)_
   - "Rankings" and "Ratings" are in the site header.
 - **Seed data**
   - "Northland 9-ball rankings" (2026). The Winter Nine-Ball Classic has awarded its points, and the Eastbridge Spring Open counts towards it.
+
+### M8
+
+- **Appointments replace the site-wide Organiser and Referee roles**
+  - A user is appointed Organiser or Referee at an organisation (`Appointment`: organisation, user, role; one per user per organisation). An appointment covers that organisation and everything below it.
+  - An organiser can do everything a referee can.
+  - Admin stays a site-wide role and may do anything. Player is kept, but grants nothing yet.
+  - The Identity roles Organiser and Referee are retired, so `PUT /api/users/{id}/roles` now accepts only Admin and Player. Keeping them as well would have meant two sources of truth that could drift apart.
+  - Appointments are read from the database on every check, not carried in the token. A new or removed appointment counts at once, without signing in again.
+- **Where permissions are checked**
+  - Every command in the Application layer checks the organisation it touches through `OrganisationAccess`, and throws `ForbiddenException` (403 "Forbidden") otherwise. Unknown resources are still 404, checked first.
+  - Running tournaments, leagues and rankings needs Organiser. Starting matches, results, frames and walkovers need Referee. The rating rebuild and user roles stay Admin-only.
+  - The endpoint policies (`ManageTournaments`, `ScoreMatches`, `ManageLeagues`, `ManageRankings` and the new `ManageOrganisations`) now only ask "an admin, or appointed with at least this role somewhere". They decide who reaches staff endpoints and pages; the command decides where.
+  - `ICurrentUser` comes from the request. Interactive pages have no request when they run a command, so they hand their signed-in user to a fresh scope (`ScopedWork.RunAsAsync`).
+  - The policy handler uses its own short-lived scope. On a server-rendered page the layout's authorisation check can run alongside the page's queries, and a DbContext allows one operation at a time.
+- **Hierarchy rules**
+  - Only an admin can add a top-level organisation. An organiser can add organisations below their own. The existing rule that a parent sits above its child (international → national → regional → club) means the hierarchy cannot loop.
+  - An organiser can appoint, change and remove organisers and referees at their organisation or below it. They can share their rights but never gain more.
+  - Appointments are made by email address, so the person needs an account first. An unknown email is 404, which tells an organiser whether an address has an account; that seemed acceptable for staff.
+  - Staff lists include email addresses, so only that organisation's organisers (or an admin) may read them.
+- **Rankings across the hierarchy** (deferred from M7)
+  - A tournament may count towards a ranking of its own organisation or any organisation above it (`OrganisationLineage`), so a club event can count in a national ranking.
+  - Choosing a ranking needs organiser rights over the ranking's organisation as well, so a club cannot put its own events into a national ranking. Keeping the current ranking needs no extra rights, so the club can still edit the event.
+- **New API** (under `/api`; reading is public)
+  - `organisations`: `GET`, `GET {id}` (parent, children, venues and tables, public tournaments, leagues, rankings, member count), `POST` and `PUT {id}` (rename).
+  - `organisations/{id}/venues` (`POST`) and `organisations/venues/{venueId}/tables` (`POST`).
+  - `organisations/{id}/staff`: `GET`, `PUT` (`{ email, role }`, appoints or changes the role) and `DELETE {userId}`.
+  - `organisations/{id}/players/{playerId}`: `PUT` and `DELETE` (membership). `POST players` adds a player as a member of an organisation.
+  - `GET users/me/appointments`.
+- **Migration (`OrganisationStaff`)**
+  - Adds `Appointments` (unique on organisation and user; cascades from the organisation and the user).
+  - Holders of the old Organiser and Referee roles are appointed at every top-level organisation, which keeps everything they could do. Anyone who held both becomes an organiser. The two roles are then deleted.
+  - It was checked by migrating a database made with the M7 code, with one user holding both roles and one holding Referee only.
+- **Pages**
+  - Public (static SSR): `/organisations`, the hierarchy as a tree, and `/organisations/{id}`. Tournament pages link to the organisation that runs them.
+  - `/organiser` lists the signed-in user's appointments.
+  - `/organiser/organisations/{id}/staff` (Interactive Server) lists staff, appoints by email with a role, changes roles and removes staff.
+  - `/referee` lists only the tournaments the user may score, and a scoring page says so up front when they cannot.
+  - "Enter result" links show only for organisers of the league's organisation, not for every organiser.
+  - The header has "Organisations" for everyone, and "Your organisations" for staff.
+- **Seed data**
+  - The Eastbridge Spring Open now belongs to the Corner Pocket Club and still counts towards the national 9-ball ranking.
+  - No staff accounts are seeded, as they would need passwords in the repository. The admin from user-secrets can appoint people on the staff page.
+- **Tests**
+  - The test factory adds a test federation above every club the tests create. Staff signed in through `ClientForAsync(StaffRole.…)` are appointed there by default, so earlier tests keep their meaning. The hierarchy tests make their own organisations.
+- **Bug fixes found along the way**
+  - **Player profiles failed about one request in ten under load** (from M7). A static page renders once at its first slow `await`, and the profile set the player before loading its record, so that render could see half-loaded state. It now loads everything before setting any field. A regression test sends 300 requests, 20 at a time.
+  - **Organisation levels sorted alphabetically.** Enums are stored as text, so ordering by level in SQL put "Club" before "International". Those lists are now sorted in memory.

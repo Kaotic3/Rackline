@@ -1,6 +1,7 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
 using Rackline.Application.Rankings;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tournaments;
@@ -10,6 +11,7 @@ public sealed class MatchResults(
     ITournamentRepository tournaments,
     IReferenceData references,
     IRatingRepository ratings,
+    OrganisationAccess access,
     ILiveNotifier notifier,
     TimeProvider time)
 {
@@ -32,6 +34,7 @@ public sealed class MatchResults(
     private async Task ChangeAsync(Guid tournamentId, int matchNumber, Action<Tournament> change, CancellationToken cancellationToken)
     {
         var tournament = await tournaments.GetWithMatchAsync(tournamentId, matchNumber, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Referee, cancellationToken);
         var changes = MatchChanges.Capture(tournament);
         var rated = RatingUpdates.RatedSoFar(tournament);
 

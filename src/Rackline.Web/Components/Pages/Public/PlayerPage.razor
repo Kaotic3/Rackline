@@ -19,7 +19,7 @@
         }
     </p>
 
-    <RecordTiles Record="_record!" />
+    <RecordTiles Record="_record" />
 
     @if (p.Ratings.Count > 0)
     {
@@ -112,7 +112,7 @@
     private PlayerProfileDto? _player;
     private IReadOnlyList<PlayedMatchDto> _matches = [];
     private IReadOnlyList<PlayerSummaryDto> _others = [];
-    private PlayerRecord? _record;
+    private PlayerRecord _record = PlayerRecord.From([]);
     private IReadOnlyList<PlayerRankingDto> _rankings = [];
     private IReadOnlyList<RatingChangeDto> _ratingHistory = [];
 
@@ -121,22 +121,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _player = await Queries.GetProfileAsync(Id, CancellationToken.None);
-        if (_player is null)
+        // Load everything before setting any field: a static page renders once at its first slow
+        // await, and must never see the player without the rest.
+        var player = await Queries.GetProfileAsync(Id, CancellationToken.None);
+        if (player is null)
         {
             Navigation.NotFound();
             return;
         }
 
-        _matches = await Queries.GetPlayedMatchesAsync(Id, CancellationToken.None);
-        _record = PlayerRecord.From(_matches);
-        _rankings = await RankingQueries.ForPlayerAsync(Id, CancellationToken.None);
-        _ratingHistory = await RatingQueries.HistoryAsync(Id, 10, CancellationToken.None);
+        var matches = await Queries.GetPlayedMatchesAsync(Id, CancellationToken.None);
+        var rankings = await RankingQueries.ForPlayerAsync(Id, CancellationToken.None);
+        var ratingHistory = await RatingQueries.HistoryAsync(Id, 10, CancellationToken.None);
 
         // Opponents already met come first, as they are the likeliest comparison.
-        var met = _matches.Select(m => m.OpponentPlayerId).ToHashSet();
-        _others = [.. (await Queries.ListAsync(null, CancellationToken.None))
+        var met = matches.Select(m => m.OpponentPlayerId).ToHashSet();
+        var others = (await Queries.ListAsync(null, CancellationToken.None))
             .Where(x => x.Id != Id)
-            .OrderByDescending(x => met.Contains(x.Id))];
+            .OrderByDescending(x => met.Contains(x.Id))
+            .ToList();
+
+        (_matches, _record, _rankings, _ratingHistory, _others) = (matches, PlayerRecord.From(matches), rankings, ratingHistory, others);
+        _player = player;
     }
 }

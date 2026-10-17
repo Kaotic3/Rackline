@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Rackline.Domain.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Rankings;
 using Rackline.Domain.Tournaments;
 using static Rackline.Domain.Tests.Rankings.RankingTestSupport;
@@ -12,6 +13,15 @@ public class RankingTests
     private static readonly Guid Ben = new("00000000-0000-0000-0000-000000000002");
     private static readonly Guid Cal = new("00000000-0000-0000-0000-000000000003");
     private static readonly Guid Dee = new("00000000-0000-0000-0000-000000000004");
+
+    private static readonly Guid NationalId = new("00000000-0000-0000-0000-0000000000cc");
+
+    /// <summary>The tournament's organisation, under a national body.</summary>
+    private static readonly OrganisationLineage Lineage = new(OrganisationId, new Dictionary<Guid, Guid?>
+    {
+        [OrganisationId] = NationalId,
+        [NationalId] = null,
+    });
 
     private static Ranking NewRanking(Discipline discipline = Discipline.NineBall) =>
         new(OrganisationId, "Coastal 9-ball rankings", discipline, "2026", [100, 70, 50, 30], participationPoints: 10);
@@ -86,27 +96,39 @@ public class RankingTests
     }
 
     [Fact]
-    public void A_tournament_counts_towards_a_ranking_of_its_own_organisation_and_discipline()
+    public void A_tournament_counts_towards_a_ranking_of_its_own_organisation_or_one_above_it()
     {
         var tournament = new Tournament(OrganisationId, "Harbourside Open", Discipline.NineBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
         var ranking = NewRanking();
+        var national = new Ranking(NationalId, "National 9-ball rankings", Discipline.NineBall, "2026", [10]);
 
-        tournament.CountTowards(ranking);
+        tournament.CountTowards(ranking, Lineage);
         tournament.RankingId.Should().Be(ranking.Id);
+        tournament.CountTowards(national, Lineage);
+        tournament.RankingId.Should().Be(national.Id);
 
-        tournament.Invoking(t => t.CountTowards(NewRanking(Discipline.Snooker))).Should().Throw<DomainException>();
-        tournament.Invoking(t => t.CountTowards(new Ranking(Guid.CreateVersion7(), "Elsewhere", Discipline.NineBall, "2026", [10])))
+        tournament.Invoking(t => t.CountTowards(NewRanking(Discipline.Snooker), Lineage)).Should().Throw<DomainException>();
+        tournament.Invoking(t => t.CountTowards(new Ranking(Guid.CreateVersion7(), "Elsewhere", Discipline.NineBall, "2026", [10]), Lineage))
             .Should().Throw<DomainException>();
 
-        tournament.CountTowards(null);
+        tournament.CountTowards(null, Lineage);
         tournament.RankingId.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_lineage_must_start_at_the_tournament_organisation()
+    {
+        var tournament = new Tournament(NationalId, "National Open", Discipline.NineBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
+
+        // A national event cannot count towards a club's ranking by passing the club's lineage.
+        tournament.Invoking(t => t.CountTowards(NewRanking(), Lineage)).Should().Throw<DomainException>();
     }
 
     [Fact]
     public void The_discipline_cannot_change_while_the_tournament_is_in_a_ranking()
     {
         var tournament = new Tournament(OrganisationId, "Harbourside Open", Discipline.NineBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
-        tournament.CountTowards(NewRanking());
+        tournament.CountTowards(NewRanking(), Lineage);
 
         tournament.Invoking(t => t.Reconfigure(Discipline.TenBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(5)))
             .Should().Throw<DomainException>();
@@ -119,6 +141,8 @@ public class RankingTests
     {
         var tournament = Started(4, TournamentFormat.SingleElimination);
 
-        tournament.Invoking(t => t.CountTowards(NewRanking())).Should().Throw<DomainException>();
+        tournament.Invoking(t => t.CountTowards(NewRanking(), new OrganisationLineage(OrganisationId, new Dictionary<Guid, Guid?> { [OrganisationId] = null })))
+            .Should().Throw<DomainException>();
+        tournament.Invoking(t => t.LeaveRanking()).Should().Throw<DomainException>();
     }
 }

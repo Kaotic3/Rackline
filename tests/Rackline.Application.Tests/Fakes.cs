@@ -1,8 +1,11 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
+using Rackline.Application.Organisations;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Common;
 using Rackline.Domain.Leagues;
+using Rackline.Domain.Organisations;
+using Rackline.Domain.Players;
 using Rackline.Domain.Rankings;
 using Rackline.Domain.Tournaments;
 
@@ -163,4 +166,93 @@ internal sealed class InMemoryRatings : IRatingRepository
         Changes.AddRange(changes);
         return Task.CompletedTask;
     }
+}
+
+internal sealed class FakeUser : ICurrentUser
+{
+    public Guid? UserId { get; set; } = Guid.CreateVersion7();
+
+    public bool IsAdmin { get; set; } = true;
+}
+
+/// <summary>
+/// The hierarchy and appointments. An organisation not in <see cref="Parents"/> is treated as a
+/// top-level one, so tests that do not care about the hierarchy need not set it up.
+/// </summary>
+internal sealed class FakeDirectory : IOrganisationDirectory
+{
+    public Dictionary<Guid, Guid?> Parents { get; } = [];
+
+    public List<Appointment> Appointments { get; } = [];
+
+    public Task<OrganisationLineage?> FindLineageAsync(Guid organisationId, CancellationToken cancellationToken) =>
+        Task.FromResult<OrganisationLineage?>(Parents.ContainsKey(organisationId)
+            ? new OrganisationLineage(organisationId, Parents)
+            : new OrganisationLineage(organisationId, new Dictionary<Guid, Guid?> { [organisationId] = null }));
+
+    public Task<IReadOnlyList<Appointment>> AppointmentsForAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Appointment>>([.. Appointments.Where(a => a.UserId == userId)]);
+}
+
+internal static class Access
+{
+    /// <summary>Access for an administrator, who may do anything.</summary>
+    public static OrganisationAccess Admin() => new(new FakeUser(), new FakeDirectory());
+}
+
+internal sealed class InMemoryOrganisations : IOrganisationRepository
+{
+    public List<Organisation> Organisations { get; } = [];
+
+    public List<Venue> Venues { get; } = [];
+
+    public List<Appointment> Appointments { get; } = [];
+
+    public Task<Organisation?> FindAsync(Guid id, CancellationToken cancellationToken) =>
+        Task.FromResult(Organisations.SingleOrDefault(o => o.Id == id));
+
+    public void Add(Organisation organisation) => Organisations.Add(organisation);
+
+    public Task<Venue?> FindVenueAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Venues.SingleOrDefault(v => v.Id == id));
+
+    public void Add(Venue venue) => Venues.Add(venue);
+
+    public Task<Appointment?> FindAppointmentAsync(Guid organisationId, Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(Appointments.SingleOrDefault(a => a.OrganisationId == organisationId && a.UserId == userId));
+
+    public void Add(Appointment appointment) => Appointments.Add(appointment);
+
+    public void Remove(Appointment appointment) => Appointments.Remove(appointment);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+internal sealed class InMemoryPlayers : IPlayerRepository
+{
+    public List<Player> Players { get; } = [];
+
+    public Task<Player?> FindAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Players.SingleOrDefault(p => p.Id == id));
+
+    public void Add(Player player) => Players.Add(player);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+internal sealed class FakeUsers : IUserDirectory
+{
+    public Dictionary<string, Guid> ByEmail { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<Guid?> FindIdByEmailAsync(string email, CancellationToken cancellationToken) =>
+        Task.FromResult<Guid?>(ByEmail.TryGetValue(email, out var id) ? id : null);
+}
+
+internal sealed class FakeOrganisationQueries : IOrganisationQueries
+{
+    public Task<IReadOnlyList<OrganisationSummaryDto>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<OrganisationSummaryDto>>([]);
+
+    public Task<OrganisationDetailDto?> GetAsync(Guid organisationId, CancellationToken cancellationToken) => Task.FromResult<OrganisationDetailDto?>(null);
+
+    public Task<IReadOnlyList<StaffDto>> StaffAsync(Guid organisationId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<StaffDto>>([]);
+
+    public Task<IReadOnlyList<MyAppointmentDto>> AppointmentsOfAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<MyAppointmentDto>>([]);
 }

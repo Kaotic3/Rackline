@@ -1,0 +1,25 @@
+@* One level of the hierarchy, with everything below it nested inside. *@
+@{
+    var level = All.Where(o => o.ParentId == ParentId).ToList();
+}
+@if (level.Count > 0)
+{
+    <ul class="tree">
+        @foreach (var organisation in level)
+        {
+            <li>
+                <a href="/organisations/@organisation.Id">@organisation.Name</a>
+                <span class="muted">· @Labels.Of(organisation.Level)</span>
+                <OrganisationTree All="All" ParentId="organisation.Id" />
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<OrganisationSummaryDto> All { get; set; } = [];
+
+    [Parameter]
+    public Guid? ParentId { get; set; }
+}

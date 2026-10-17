@@ -18,12 +18,21 @@ else
     <h1>@_tournament.Name</h1>
     <p class="muted">@MatchText.Length(_tournament.MatchLength) · @_tournament.Status</p>
 
+    @if (!_canScore)
+    {
+        <p class="alert" role="alert">You are not a referee or organiser for @(_tournament.OrganisationName ?? "this tournament's organisation"), so you cannot score these matches.</p>
+    }
+
     <MatchList Title="Live now" Tournament="_tournament" Matches="Playable(MatchState.Live)" Empty="No matches are live." />
     <MatchList Title="Ready to start" Tournament="_tournament" Matches="Playable(MatchState.Ready)" Empty="No matches are waiting to start." />
 }
 
 @code {
     private TournamentDetailDto? _tournament;
+    private bool _canScore = true;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
 
     [Parameter]
     public Guid Id { get; set; }
@@ -32,6 +41,11 @@ else
     {
         Feed.Published += OnLiveUpdate;
         await LoadAsync();
+        if (_tournament is { } tournament)
+        {
+            _canScore = await Scopes.RunAsAsync<OrganisationAccess, bool>(
+                (await AuthenticationState).User, a => a.CanAsync(tournament.OrganisationId, StaffRole.Referee, CancellationToken.None));
+        }
     }
 
     private IReadOnlyList<MatchDto> Playable(MatchState state) =>

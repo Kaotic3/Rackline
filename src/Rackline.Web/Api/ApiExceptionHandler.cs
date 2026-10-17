@@ -18,6 +18,7 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problemDetails,
         (int Status, string Title, string? Detail)? problem = exception switch
         {
             NotFoundException e => (StatusCodes.Status404NotFound, "Not found", e.Message),
+            ForbiddenException e => (StatusCodes.Status403Forbidden, "Forbidden", e.Message),
             DomainException e => (StatusCodes.Status409Conflict, "Not allowed", e.Message),
             ConflictException e => (StatusCodes.Status409Conflict, "Conflicting change", e.Message),
             BadHttpRequestException e when isApi => (e.StatusCode, "Bad request", e.Message),

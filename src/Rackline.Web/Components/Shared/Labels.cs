@@ -1,6 +1,7 @@
 using System.Globalization;
 using Rackline.Domain.Common;
 using Rackline.Domain.Leagues;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Web.Components.Shared;
@@ -57,6 +58,22 @@ public static class Labels
         FixtureStatus.Postponed => "Postponed",
         FixtureStatus.Completed => "Played",
         _ => status.ToString(),
+    };
+
+    public static string Of(OrganisationLevel level) => level switch
+    {
+        OrganisationLevel.International => "International body",
+        OrganisationLevel.National => "National body",
+        OrganisationLevel.Regional => "Region",
+        OrganisationLevel.Club => "Club",
+        _ => level.ToString(),
+    };
+
+    public static string Of(StaffRole role) => role switch
+    {
+        StaffRole.Organiser => "Organiser",
+        StaffRole.Referee => "Referee",
+        _ => role.ToString(),
     };
 
     public static string Date(DateOnly date) => date.ToString("d MMM yyyy", British);

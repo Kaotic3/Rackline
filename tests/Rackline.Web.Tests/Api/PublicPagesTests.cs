@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Rackline.Application.Common;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Matches;
 using Rackline.Web.Tests.Persistence;
@@ -23,7 +24,7 @@ public class PublicPagesTests(ApiFactory api) : IClassFixture<ApiFactory>
         string format, int players, bool start = true, string? name = null)
     {
         var (organisationId, _, playerIds) = await api.AddReferenceDataAsync(players);
-        var organiser = await api.ClientForAsync(Roles.Organiser);
+        var organiser = await api.ClientForAsync(StaffRole.Organiser);
         name ??= $"Public {format} {Guid.NewGuid():N}"[..30];
 
         var created = await organiser.PostAsJsonAsync("/api/tournaments", new
@@ -162,6 +163,32 @@ public class PublicPagesTests(ApiFactory api) : IClassFixture<ApiFactory>
         html.Should().Contain(t.Name).And.Contain("Won 3–0");
 
         (await _visitor.GetAsync($"/players/{Guid.NewGuid()}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [PostgresFact]
+    public async Task Player_profiles_hold_up_under_many_requests_at_once()
+    {
+        // Regression: the page once set the player before loading the rest. Under load the static
+        // renderer drew it half-loaded at its first slow await, failing about one request in ten.
+        var (organiser, tournament, players) = await TournamentAsync("SingleElimination", 2);
+        await ResultAsync(organiser, tournament.Id, tournament.Matches.Single().Number, 3, 1);
+
+        // Twenty at a time: enough to reproduce the old failure, without running the test database out of connections.
+        using var gate = new SemaphoreSlim(20);
+        var statuses = await Task.WhenAll(Enumerable.Range(0, 300).Select(async _ =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                return (await _visitor.GetAsync($"/players/{players[0]}")).StatusCode;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        statuses.Should().AllBeEquivalentTo(HttpStatusCode.OK);
     }
 
     [PostgresFact]

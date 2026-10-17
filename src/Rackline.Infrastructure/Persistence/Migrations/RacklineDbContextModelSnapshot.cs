@@ -59,20 +59,6 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = new Guid("0193a000-0000-7000-8000-000000000002"),
-                            ConcurrencyStamp = "0193a000-0000-7000-8000-000000000002",
-                            Name = "Organiser",
-                            NormalizedName = "ORGANISER"
-                        },
-                        new
-                        {
-                            Id = new Guid("0193a000-0000-7000-8000-000000000003"),
-                            ConcurrencyStamp = "0193a000-0000-7000-8000-000000000003",
-                            Name = "Referee",
-                            NormalizedName = "REFEREE"
-                        },
-                        new
-                        {
                             Id = new Guid("0193a000-0000-7000-8000-000000000004"),
                             ConcurrencyStamp = "0193a000-0000-7000-8000-000000000004",
                             Name = "Player",
@@ -545,6 +531,32 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.HasIndex("TournamentId", "State");
 
                     b.ToTable("Matches");
+                });
+
+            modelBuilder.Entity("Rackline.Domain.Organisations.Appointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("OrganisationId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("Appointments");
                 });
 
             modelBuilder.Entity("Rackline.Domain.Organisations.Organisation", b =>
@@ -1158,6 +1170,21 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Frames");
+                });
+
+            modelBuilder.Entity("Rackline.Domain.Organisations.Appointment", b =>
+                {
+                    b.HasOne("Rackline.Domain.Organisations.Organisation", null)
+                        .WithMany()
+                        .HasForeignKey("OrganisationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rackline.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Rackline.Domain.Organisations.Organisation", b =>

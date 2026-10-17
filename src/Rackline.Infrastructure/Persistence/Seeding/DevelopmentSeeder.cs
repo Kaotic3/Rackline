@@ -38,6 +38,7 @@ public static class DevelopmentSeeder
         var region = new Organisation("Northland East", OrganisationLevel.Regional, federation);
         var club = new Organisation("Corner Pocket Club", OrganisationLevel.Club, region);
         db.Organisations.AddRange(union, federation, region, club);
+        var parents = new[] { union, federation, region, club }.ToDictionary(o => o.Id, o => o.ParentId);
 
         var venue = new Venue(club.Id, "The Green Baize Rooms", "1 Example Street, Eastbridge");
         var tables = Enumerable.Range(1, 6).Select(i => venue.AddTable($"Table {i}")).ToList();
@@ -59,10 +60,10 @@ public static class DevelopmentSeeder
 
         Tournament[] tournaments =
         [
-            SpringOpen(federation, players, tables, ranking),
+            SpringOpen(club, new OrganisationLineage(club.Id, parents), players, tables, ranking),
             ClubNight(club, players),
             SnookerClassic(club, players),
-            WinterClassic(federation, players, tables, ranking),
+            WinterClassic(federation, new OrganisationLineage(federation.Id, parents), players, tables, ranking),
         ];
         db.Tournaments.AddRange(tournaments);
 
@@ -77,12 +78,15 @@ public static class DevelopmentSeeder
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>A 16-player double-elimination ranking event part-way through its first round.</summary>
-    private static Tournament SpringOpen(Organisation owner, List<Player> players, List<Table> tables, Ranking ranking)
+    /// <summary>
+    /// A 16-player double-elimination club event part-way through its first round. It counts towards
+    /// the national ranking, which belongs to an organisation above the club.
+    /// </summary>
+    private static Tournament SpringOpen(Organisation owner, OrganisationLineage lineage, List<Player> players, List<Table> tables, Ranking ranking)
     {
         var tournament = new Tournament(owner.Id, "Eastbridge Spring Open", Discipline.NineBall,
             TournamentFormat.DoubleElimination, MatchLength.RaceTo(7));
-        tournament.CountTowards(ranking);
+        tournament.CountTowards(ranking, lineage);
         tournament.OpenRegistration();
         for (var i = 0; i < players.Count; i++)
         {
@@ -140,11 +144,11 @@ public static class DevelopmentSeeder
     /// A finished 8-player 9-ball knockout, scored frame by frame, so profiles and head-to-heads have history.
     /// The better seed wins every match except one upset in the first round. It counts towards the ranking.
     /// </summary>
-    private static Tournament WinterClassic(Organisation owner, List<Player> players, List<Table> tables, Ranking ranking)
+    private static Tournament WinterClassic(Organisation owner, OrganisationLineage lineage, List<Player> players, List<Table> tables, Ranking ranking)
     {
         var tournament = new Tournament(owner.Id, "Winter Nine-Ball Classic", Discipline.NineBall,
             TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
-        tournament.CountTowards(ranking);
+        tournament.CountTowards(ranking, lineage);
         tournament.OpenRegistration();
         var seeds = players.Take(8).Select((p, i) => tournament.AddEntry(p.Id, seed: i + 1)).ToList();
         var seedOf = seeds.ToDictionary(e => e.Id, e => e.Seed!.Value);

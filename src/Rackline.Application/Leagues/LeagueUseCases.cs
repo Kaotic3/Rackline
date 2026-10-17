@@ -1,6 +1,7 @@
 using Rackline.Application.Common;
 using Rackline.Domain.Common;
 using Rackline.Domain.Leagues;
+using Rackline.Domain.Organisations;
 
 namespace Rackline.Application.Leagues;
 
@@ -22,7 +23,7 @@ public sealed record SeasonRulesInput(
 }
 
 /// <summary>Creating leagues and seasons, entering teams and players, and making the fixtures.</summary>
-public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData references)
+public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData references, OrganisationAccess access)
 {
     public async Task<Guid> CreateLeagueAsync(Guid organisationId, string name, Discipline discipline, CancellationToken cancellationToken = default)
     {
@@ -31,6 +32,7 @@ public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData refere
             throw new NotFoundException("Organisation", organisationId);
         }
 
+        await access.EnsureAsync(organisationId, StaffRole.Organiser, cancellationToken);
         var league = new League(organisationId, name, discipline);
         leagues.Add(league);
         await leagues.SaveChangesAsync(cancellationToken);
@@ -40,6 +42,7 @@ public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData refere
     public async Task<Guid> AddSeasonAsync(Guid leagueId, string name, DateOnly startsOn, DateOnly endsOn, SeasonRulesInput rules, CancellationToken cancellationToken = default)
     {
         var league = await leagues.FindAsync(leagueId, cancellationToken) ?? throw new NotFoundException("League", leagueId);
+        await access.EnsureAsync(league.OrganisationId, StaffRole.Organiser, cancellationToken);
         var season = league.AddSeason(name, startsOn, endsOn, rules.ToRules());
         await leagues.SaveChangesAsync(cancellationToken);
         return season.Id;
@@ -52,7 +55,7 @@ public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData refere
             throw new NotFoundException("Venue", venue);
         }
 
-        var season = await leagues.GetSeasonAsync(seasonId, cancellationToken);
+        var season = await leagues.GetSeasonAsync(access, seasonId, cancellationToken);
         var team = season.AddTeam(name, homeVenueId);
         await leagues.SaveChangesAsync(cancellationToken);
         return team.Id;
@@ -82,17 +85,17 @@ public sealed class LeagueSetup(ILeagueRepository leagues, IReferenceData refere
 
     private async Task ChangeSeasonAsync(Guid seasonId, Action<Season> change, CancellationToken cancellationToken)
     {
-        change(await leagues.GetSeasonAsync(seasonId, cancellationToken));
+        change(await leagues.GetSeasonAsync(access, seasonId, cancellationToken));
         await leagues.SaveChangesAsync(cancellationToken);
     }
 }
 
 /// <summary>Entering, correcting and rescheduling fixtures.</summary>
-public sealed class LeagueResults(ILeagueRepository leagues, TimeProvider time)
+public sealed class LeagueResults(ILeagueRepository leagues, OrganisationAccess access, TimeProvider time)
 {
     public async Task RecordResultAsync(Guid seasonId, Guid fixtureId, IReadOnlyList<RubberResult> rubbers, CancellationToken cancellationToken = default)
     {
-        var season = await leagues.GetSeasonAsync(seasonId, cancellationToken);
+        var season = await leagues.GetSeasonAsync(access, seasonId, cancellationToken);
         season.RecordResult(season.RequireFixture(fixtureId), rubbers, time.GetUtcNow());
         await leagues.SaveChangesAsync(cancellationToken);
     }
@@ -100,7 +103,7 @@ public sealed class LeagueResults(ILeagueRepository leagues, TimeProvider time)
     /// <summary>Moves a fixture; a null date postpones it until a new one is agreed.</summary>
     public async Task RescheduleAsync(Guid seasonId, Guid fixtureId, DateTimeOffset? scheduledFor, CancellationToken cancellationToken = default)
     {
-        var season = await leagues.GetSeasonAsync(seasonId, cancellationToken);
+        var season = await leagues.GetSeasonAsync(access, seasonId, cancellationToken);
         season.Reschedule(season.RequireFixture(fixtureId), scheduledFor);
         await leagues.SaveChangesAsync(cancellationToken);
     }
@@ -108,9 +111,11 @@ public sealed class LeagueResults(ILeagueRepository leagues, TimeProvider time)
 
 internal static class LeagueLookups
 {
-    public static async Task<Season> GetSeasonAsync(this ILeagueRepository leagues, Guid seasonId, CancellationToken cancellationToken)
+    /// <summary>The season, tracked for changes, once the user is known to be an organiser of its league's organisation.</summary>
+    public static async Task<Season> GetSeasonAsync(this ILeagueRepository leagues, OrganisationAccess access, Guid seasonId, CancellationToken cancellationToken)
     {
         var league = await leagues.FindBySeasonAsync(seasonId, cancellationToken) ?? throw new NotFoundException("Season", seasonId);
+        await access.EnsureAsync(league.OrganisationId, StaffRole.Organiser, cancellationToken);
         return league.FindSeason(seasonId);
     }
 

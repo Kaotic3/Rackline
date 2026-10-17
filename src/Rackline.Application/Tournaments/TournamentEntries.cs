@@ -1,15 +1,17 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
+using Rackline.Domain.Organisations;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tournaments;
 
 /// <summary>Registering players, seeding and handicaps.</summary>
-public sealed class TournamentEntries(ITournamentRepository tournaments, IReferenceData references, ILiveNotifier notifier)
+public sealed class TournamentEntries(ITournamentRepository tournaments, IReferenceData references, OrganisationAccess access, ILiveNotifier notifier)
 {
     public async Task<Guid> AddAsync(Guid tournamentId, Guid playerId, int? seed, int handicap, CancellationToken cancellationToken = default)
     {
         var tournament = await tournaments.GetAsync(tournamentId, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Organiser, cancellationToken);
         if (!await references.PlayerExistsAsync(playerId, cancellationToken))
         {
             throw new NotFoundException("Player", playerId);
@@ -41,6 +43,7 @@ public sealed class TournamentEntries(ITournamentRepository tournaments, IRefere
     private async Task<Tournament> GetWithEntryAsync(Guid tournamentId, Guid entryId, CancellationToken cancellationToken)
     {
         var tournament = await tournaments.GetAsync(tournamentId, cancellationToken);
+        await access.EnsureAsync(tournament.OrganisationId, StaffRole.Organiser, cancellationToken);
         return tournament.Entries.Any(e => e.Id == entryId)
             ? tournament
             : throw new NotFoundException("Entry", entryId);
