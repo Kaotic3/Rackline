@@ -1,0 +1,72 @@
+@page "/account/login"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Rackline.Infrastructure.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Rackline</PageTitle>
+
+<h1>Sign in</h1>
+
+@if (_error is not null)
+{
+    <p class="alert" role="alert">@_error</p>
+}
+
+<EditForm Model="Input!" FormName="login" OnValidSubmit="SignInAsync" class="stack narrow">
+    <DataAnnotationsValidator />
+
+    <label>
+        Email
+        <InputText @bind-Value="Input!.Email" type="email" autocomplete="username" />
+        <ValidationMessage For="() => Input!.Email" />
+    </label>
+
+    <label>
+        Password
+        <InputText @bind-Value="Input!.Password" type="password" autocomplete="current-password" />
+        <ValidationMessage For="() => Input!.Password" />
+    </label>
+
+    <button type="submit" class="button">Sign in</button>
+</EditForm>
+
+@code {
+    private string? _error;
+
+    [SupplyParameterFromForm]
+    private LoginInput? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task SignInAsync()
+    {
+        var result = await SignInManager.PasswordSignInAsync(Input!.Email, Input.Password, isPersistent: false, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo(SafeReturnUrl(ReturnUrl));
+            return;
+        }
+
+        _error = result.IsLockedOut
+            ? "This account is locked for a few minutes after too many failed attempts."
+            : "That email and password do not match an account.";
+    }
+
+    /// <summary>Only ever redirect within this site.</summary>
+    private static string SafeReturnUrl(string? url) =>
+        !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.StartsWith("/\\") ? url : "/";
+
+    private sealed class LoginInput
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = "";
+
+        [Required]
+        public string Password { get; set; } = "";
+    }
+}

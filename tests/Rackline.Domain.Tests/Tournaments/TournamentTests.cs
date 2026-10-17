@@ -312,4 +312,25 @@ public class TournamentTests
         tournament.CanBeDeleted.Should().BeTrue();
         NewTournament().CanBeDeleted.Should().BeTrue();
     }
+
+    [Fact]
+    public void Frames_are_recorded_and_taken_back_through_the_tournament()
+    {
+        var tournament = WithEntries(2);
+        tournament.MakeDraw(new SeededRandom(1));
+        tournament.Invoking(t => t.RecordFrame(1, 1, At)).Should().Throw<DomainException>("not started yet");
+
+        tournament.Start();
+        tournament.StartMatch(1, At);
+        tournament.RecordFrame(1, 1, At);
+        tournament.RecordFrame(1, 2, At);
+        tournament.UndoLastFrame(1);
+        for (var i = 0; i < 6; i++)
+        {
+            tournament.RecordFrame(1, 1, At);
+        }
+
+        tournament.Matches.Single().Should().BeEquivalentTo(new { State = MatchState.Completed, Score1 = 7, Score2 = 0 }, o => o.ExcludingMissingMembers());
+        tournament.Complete();
+    }
 }

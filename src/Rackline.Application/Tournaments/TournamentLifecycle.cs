@@ -1,11 +1,12 @@
 using Rackline.Application.Common;
+using Rackline.Application.Live;
 using Rackline.Domain.Common;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tournaments;
 
 /// <summary>Creating, changing and moving a tournament through its statuses.</summary>
-public sealed class TournamentLifecycle(ITournamentRepository tournaments, IReferenceData references)
+public sealed class TournamentLifecycle(ITournamentRepository tournaments, IReferenceData references, ILiveNotifier notifier)
 {
     public async Task<Guid> CreateAsync(Guid organisationId, TournamentSettings settings, CancellationToken cancellationToken = default)
     {
@@ -54,7 +55,9 @@ public sealed class TournamentLifecycle(ITournamentRepository tournaments, IRefe
 
     private async Task ApplyAsync(Guid id, Action<Tournament> change, CancellationToken cancellationToken)
     {
-        change(await tournaments.GetAsync(id, cancellationToken));
+        var tournament = await tournaments.GetAsync(id, cancellationToken);
+        change(tournament);
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(id, tournament.Status, cancellationToken);
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Rackline.Domain.Organisations;
 using Rackline.Application.Players;
 using Rackline.Application.Tournaments;
+using Rackline.Application.Venues;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Infrastructure.Persistence;
@@ -54,7 +56,9 @@ internal sealed class TournamentQueries(RacklineDbContext db) : ITournamentQueri
                         m.StartedAt,
                         m.CompletedAt,
                         m.WinnerTo == null ? null : new SlotLinkDto(m.WinnerTo.MatchNumber, m.WinnerTo.Slot),
-                        m.LoserTo == null ? null : new SlotLinkDto(m.LoserTo.MatchNumber, m.LoserTo.Slot)))
+                        m.LoserTo == null ? null : new SlotLinkDto(m.LoserTo.MatchNumber, m.LoserTo.Slot),
+                        m.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 1),
+                        m.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 2)))
                     .ToList()))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
@@ -76,4 +80,15 @@ internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries
             .Select(p => new PlayerSummaryDto(p.Id, p.FirstName, p.LastName, p.Nationality, p.LicenceNumber))
             .ToListAsync(cancellationToken);
     }
+}
+
+internal sealed class VenueQueries(RacklineDbContext db) : IVenueQueries
+{
+    public async Task<IReadOnlyList<TableDto>> ListTablesAsync(CancellationToken cancellationToken) =>
+        await db.Set<Table>()
+            .AsNoTracking()
+            .Join(db.Venues, t => t.VenueId, v => v.Id, (t, v) => new { Table = t, Venue = v })
+            .OrderBy(x => x.Venue.Name).ThenBy(x => x.Table.Label)
+            .Select(x => new TableDto(x.Table.Id, x.Table.Label, x.Venue.Id, x.Venue.Name))
+            .ToListAsync(cancellationToken);
 }

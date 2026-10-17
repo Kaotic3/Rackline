@@ -36,24 +36,9 @@ public class MatchTests
     }
 
     [Fact]
-    public void Live_scores_stay_below_the_target()
-    {
-        Opener.Invoking(m => m.UpdateScore(1, 0)).Should().Throw<DomainException>("the match is not live");
-
-        Opener.Start(At);
-        Opener.UpdateScore(4, 3);
-        Opener.Score1.Should().Be(4);
-        Opener.Score2.Should().Be(3);
-
-        Opener.Invoking(m => m.UpdateScore(5, 3)).Should().Throw<DomainException>();
-        Opener.Invoking(m => m.UpdateScore(-1, 3)).Should().Throw<DomainException>();
-    }
-
-    [Fact]
     public void A_live_match_can_be_finished_through_the_bracket()
     {
         Opener.Start(At);
-        Opener.UpdateScore(4, 4);
 
         _bracket.RecordResult(Opener.Number, 4, 5, At.AddHours(1));
 
@@ -64,19 +49,80 @@ public class MatchTests
     }
 
     [Fact]
-    public void Frames_are_numbered_in_order_while_live()
+    public void Frames_are_numbered_in_order_and_build_the_score()
     {
-        Opener.Invoking(m => m.RecordFrame(1)).Should().Throw<DomainException>();
+        _bracket.Invoking(b => b.RecordFrame(Opener.Number, 1, At)).Should().Throw<DomainException>("the match is not live");
 
         Opener.Start(At);
-        Opener.RecordFrame(1, breakAndRun: true);
-        var second = Opener.RecordFrame(2, points1: 34, points2: 71);
+        _bracket.RecordFrame(Opener.Number, 1, At, breakAndRun: true);
+        var second = _bracket.RecordFrame(Opener.Number, 2, At, points1: 34, points2: 71);
+        _bracket.RecordFrame(Opener.Number, 2, At);
 
-        Opener.Frames.Select(f => f.Number).Should().Equal(1, 2);
+        Opener.Frames.Select(f => f.Number).Should().Equal(1, 2, 3);
         Opener.Frames[0].BreakAndRun.Should().BeTrue();
         second.Should().BeEquivalentTo(new { WinnerSlot = 2, Points1 = 34, Points2 = 71, BreakAndRun = false });
-        Opener.Invoking(m => m.RecordFrame(3)).Should().Throw<DomainException>();
-        Opener.Invoking(m => m.RecordFrame(1, points1: -5)).Should().Throw<DomainException>();
+        (Opener.Score1, Opener.Score2).Should().Be((1, 2));
+        Opener.State.Should().Be(MatchState.Live);
+    }
+
+    [Fact]
+    public void Invalid_frames_change_nothing()
+    {
+        Opener.Start(At);
+
+        _bracket.Invoking(b => b.RecordFrame(Opener.Number, 3, At)).Should().Throw<DomainException>();
+        _bracket.Invoking(b => b.RecordFrame(Opener.Number, 1, At, points1: -5)).Should().Throw<DomainException>();
+
+        Opener.Frames.Should().BeEmpty();
+        (Opener.Score1, Opener.Score2).Should().Be((0, 0));
+    }
+
+    [Fact]
+    public void The_deciding_frame_completes_the_match_and_moves_the_winner_on()
+    {
+        Opener.Start(At);
+        for (var i = 0; i < 4; i++)
+        {
+            _bracket.RecordFrame(Opener.Number, 1, At);
+            _bracket.RecordFrame(Opener.Number, 2, At);
+        }
+
+        Opener.State.Should().Be(MatchState.Live, "4–4 in a race to 5 is not over");
+
+        _bracket.RecordFrame(Opener.Number, 2, At.AddHours(2));
+
+        Opener.Should().BeEquivalentTo(new { State = MatchState.Completed, Score1 = 4, Score2 = 5, CompletedAt = At.AddHours(2) }, o => o.ExcludingMissingMembers());
+        Opener.WinnerEntryId.Should().Be(Opener.Slot2.EntryId);
+        Final.Slot1.EntryId.Should().Be(Opener.Slot2.EntryId);
+        _bracket.Invoking(b => b.RecordFrame(Opener.Number, 1, At)).Should().Throw<DomainException>("the match is over");
+    }
+
+    [Fact]
+    public void The_last_frame_can_be_taken_back_while_live()
+    {
+        _bracket.Invoking(b => b.UndoLastFrame(Opener.Number)).Should().Throw<DomainException>("the match is not live");
+
+        Opener.Start(At);
+        _bracket.Invoking(b => b.UndoLastFrame(Opener.Number)).Should().Throw<DomainException>("there are no frames yet");
+
+        _bracket.RecordFrame(Opener.Number, 1, At);
+        _bracket.RecordFrame(Opener.Number, 2, At, breakAndRun: true);
+        _bracket.UndoLastFrame(Opener.Number);
+
+        Opener.Frames.Should().ContainSingle().Which.WinnerSlot.Should().Be(1);
+        (Opener.Score1, Opener.Score2).Should().Be((1, 0));
+
+        _bracket.RecordFrame(Opener.Number, 1, At);
+        Opener.Frames.Select(f => f.Number).Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void A_match_scored_by_frame_cannot_take_a_whole_result()
+    {
+        Opener.Start(At);
+        _bracket.RecordFrame(Opener.Number, 1, At);
+
+        _bracket.Invoking(b => b.RecordResult(Opener.Number, 5, 0, At)).Should().Throw<DomainException>();
     }
 
     [Fact]

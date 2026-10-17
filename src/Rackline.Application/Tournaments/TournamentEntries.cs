@@ -1,10 +1,11 @@
 using Rackline.Application.Common;
+using Rackline.Application.Live;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tournaments;
 
 /// <summary>Registering players, seeding and handicaps.</summary>
-public sealed class TournamentEntries(ITournamentRepository tournaments, IReferenceData references)
+public sealed class TournamentEntries(ITournamentRepository tournaments, IReferenceData references, ILiveNotifier notifier)
 {
     public async Task<Guid> AddAsync(Guid tournamentId, Guid playerId, int? seed, int handicap, CancellationToken cancellationToken = default)
     {
@@ -16,6 +17,7 @@ public sealed class TournamentEntries(ITournamentRepository tournaments, IRefere
 
         var entry = tournament.AddEntry(playerId, seed, handicap);
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(tournamentId, tournament.Status, cancellationToken);
         return entry.Id;
     }
 
@@ -25,6 +27,7 @@ public sealed class TournamentEntries(ITournamentRepository tournaments, IRefere
         tournament.SetSeed(entryId, seed);
         tournament.SetHandicap(entryId, handicap);
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(tournamentId, tournament.Status, cancellationToken);
     }
 
     public async Task WithdrawAsync(Guid tournamentId, Guid entryId, CancellationToken cancellationToken = default)
@@ -32,6 +35,7 @@ public sealed class TournamentEntries(ITournamentRepository tournaments, IRefere
         var tournament = await GetWithEntryAsync(tournamentId, entryId, cancellationToken);
         tournament.WithdrawEntry(entryId);
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(tournamentId, tournament.Status, cancellationToken);
     }
 
     private async Task<Tournament> GetWithEntryAsync(Guid tournamentId, Guid entryId, CancellationToken cancellationToken)

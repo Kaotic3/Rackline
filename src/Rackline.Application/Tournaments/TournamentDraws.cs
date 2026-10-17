@@ -1,10 +1,11 @@
 using Rackline.Application.Common;
+using Rackline.Application.Live;
 using Rackline.Domain.Common;
 
 namespace Rackline.Application.Tournaments;
 
 /// <summary>Making and undoing the draw.</summary>
-public sealed class TournamentDraws(ITournamentRepository tournaments)
+public sealed class TournamentDraws(ITournamentRepository tournaments, ILiveNotifier notifier)
 {
     /// <summary>
     /// Makes the draw. Passing the same <paramref name="randomSeed"/> again reproduces it exactly;
@@ -17,6 +18,7 @@ public sealed class TournamentDraws(ITournamentRepository tournaments)
 
         tournament.MakeDraw(new SeededRandom(seed));
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(tournamentId, tournament.Status, cancellationToken);
         return seed;
     }
 
@@ -25,5 +27,6 @@ public sealed class TournamentDraws(ITournamentRepository tournaments)
         var tournament = await tournaments.GetAsync(tournamentId, cancellationToken);
         tournament.UndoDraw();
         await tournaments.SaveChangesAsync(cancellationToken);
+        await notifier.TournamentChangedAsync(tournamentId, tournament.Status, cancellationToken);
     }
 }

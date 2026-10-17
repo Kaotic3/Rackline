@@ -144,6 +144,18 @@ public sealed class Tournament : Entity
         Bracket.RecordResult(matchNumber, score1, score2, at);
     }
 
+    public Frame RecordFrame(int matchNumber, int winnerSlot, DateTimeOffset at, bool breakAndRun = false, int? points1 = null, int? points2 = null)
+    {
+        RequireStatus(TournamentStatus.InProgress);
+        return Bracket.RecordFrame(matchNumber, winnerSlot, at, breakAndRun, points1, points2);
+    }
+
+    public void UndoLastFrame(int matchNumber)
+    {
+        RequireStatus(TournamentStatus.InProgress);
+        Bracket.UndoLastFrame(matchNumber);
+    }
+
     public void AwardWalkover(int matchNumber, Guid winnerEntryId, DateTimeOffset at)
     {
         RequireStatus(TournamentStatus.InProgress);

@@ -200,7 +200,7 @@ _(Append decisions here as they are made.)_
 - **Results**
   - The winner must reach `FramesToWin` exactly, and there are no draws.
   - `Handicap` is stored on `Entry` but does not yet change race lengths.
-  - `Frame` records are a separate log and are not reconciled with the score until M4.
+  - `Frame` records are a separate log and are not reconciled with the score until M4. (Superseded in M4: frames now build the score.)
   - Completing a match and awarding a walkover are `internal` to the domain. They go through `Bracket`/`Tournament` so that progression always runs.
 - **Scope**
   - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
@@ -292,3 +292,55 @@ _(Append decisions here as they are made.)_
 - **Tests**
   - Application tests use in-memory fakes.
   - API tests run the real app in a `Testing` environment against a throwaway Postgres database, and sign in through `/api/auth/login`.
+
+### M4
+
+- **Scoring by frame**
+  - During a live match the score is the count of frames won.
+  - `Tournament.RecordFrame` adds a frame. The frame that reaches the target completes the match and moves the players on.
+  - `UndoLastFrame` takes a frame back while the match is live. A completed result cannot be corrected yet; that is future work.
+  - The old direct live-score setter has been removed.
+  - Once frames have been recorded, a whole result (`RecordResult`) is refused, so the score and the frames always agree.
+- **Notifications**
+  - `ILiveNotifier` (Application) is called only after a successful save.
+  - `MatchChanges` snapshots a tournament's matches before a command. Only the matches whose `MatchDto` actually changed are broadcast (for example, the finished match and the next match the winner moves into).
+  - Status, draw and entry changes send `TournamentUpdated`.
+  - A failed broadcast is logged and never fails the command.
+- **SignalR**
+  - The hub, `LiveHub`, is at `/hubs/live`. Clients can only listen: `WatchTournament`, `UnwatchTournament`, `WatchMatch` and `UnwatchMatch` join and leave the `tournament:{id}` and `match:{id}` groups.
+  - Scoring always goes through the authorised API or the referee pages, so the hub needs no authorisation.
+  - Events:
+    - `MatchUpdated` (a `MatchDto`) goes to the match group.
+    - `MatchesUpdated` (tournament id plus the changed matches) goes to the tournament group.
+    - `TournamentUpdated` (tournament id plus status) goes to the tournament group.
+  - Enums travel as strings, as in the API.
+- **Notifier placement**
+  - `SignalRLiveNotifier<THub>` lives in Infrastructure, as the solution layout says. It needs `<FrameworkReference Include="Microsoft.AspNetCore.App" />`, which is part of .NET, not a NuGet package. The concrete hub is supplied by Web.
+  - The notifier also publishes to the in-process `LiveFeed`, which interactive Blazor pages subscribe to. They need no SignalR client of their own.
+- **API**
+  - `POST /api/tournaments/{id}/matches/{number}/frames` takes `{ winnerSlot, breakAndRun, points1, points2 }`.
+  - `DELETE …/frames/last` takes back the last frame.
+  - Both are under the `ScoreMatches` policy.
+  - `MatchDto` now includes `BreakAndRuns1` and `BreakAndRuns2`.
+- **Referee pages**
+  - `/referee` lists the tournaments in progress. It uses static server-side rendering (SSR).
+  - `/referee/tournaments/{id}` lists the live and ready matches, and `/referee/tournaments/{id}/matches/{number}` is the scoring screen.
+  - Both of those use Interactive Server, refresh from `LiveFeed`, and take a fresh DI scope (and so a fresh DbContext) for each action, so the circuit never holds stale tracked data.
+  - The scoring screen:
+    - starts a match on a chosen table, or awards a walkover;
+    - has large "+ Frame" buttons and a break-and-run toggle for the next frame;
+    - asks for confirmation before the deciding frame;
+    - can undo the last frame.
+- **Page sign-in**
+  - `/account/login` is a static SSR form using `SignInManager`, which issues a cookie. It only redirects to local URLs.
+  - Signing out is a form post to `/account/logout`, protected by antiforgery.
+  - There is a simple `/account/access-denied` page.
+- **Authentication challenges**
+  - Identity's API scheme sends every challenge to the bearer handler, so pages got a bare 401. Challenges and forbids now go through the cookie handler: pages redirect to sign-in, and the M3 cookie events still return plain 401/403 for `/api`.
+  - The only side-effect is that bearer-token callers no longer get a `WWW-Authenticate: Bearer` header.
+- **Packages**
+  - `Microsoft.AspNetCore.SignalR.Client` 10.0.13 is in Web.Tests only, to test the hub end to end.
+- **Tests**
+  - SignalR is tested with the real client over long polling against the test server.
+  - The pages are tested over HTTP (cookie sign-in through the real form, then the server-rendered output).
+  - The interactive behaviour was checked by hand in headless Chromium with a throwaway Playwright script (not in the repo): sign-in, frames, break and run, undo, the deciding-frame confirmation, completion, and starting a match on a table.

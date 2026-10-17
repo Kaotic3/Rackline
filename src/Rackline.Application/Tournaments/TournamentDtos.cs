@@ -54,7 +54,31 @@ public sealed record MatchDto(
     DateTimeOffset? StartedAt,
     DateTimeOffset? CompletedAt,
     SlotLinkDto? WinnerTo,
-    SlotLinkDto? LoserTo);
+    SlotLinkDto? LoserTo,
+    int BreakAndRuns1,
+    int BreakAndRuns2)
+{
+    public static MatchDto From(Match match) => new(
+        match.Id,
+        match.Number,
+        match.Side,
+        match.Round,
+        match.Position,
+        match.Group,
+        new SlotDto(match.Slot1.Kind, match.Slot1.EntryId),
+        new SlotDto(match.Slot2.Kind, match.Slot2.EntryId),
+        match.Score1,
+        match.Score2,
+        match.State,
+        match.WinnerEntryId,
+        match.TableId,
+        match.StartedAt,
+        match.CompletedAt,
+        match.WinnerTo is { } w ? new SlotLinkDto(w.MatchNumber, w.Slot) : null,
+        match.LoserTo is { } l ? new SlotLinkDto(l.MatchNumber, l.Slot) : null,
+        match.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 1),
+        match.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 2));
+}
 
 /// <summary>Read-only views of tournaments, projected straight from storage.</summary>
 public interface ITournamentQueries

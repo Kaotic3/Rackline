@@ -1,0 +1,38 @@
+@page "/referee"
+@attribute [Authorize(Policy = Policies.ScoreMatches)]
+@inject ITournamentQueries Queries
+
+<PageTitle>Scoring · Rackline</PageTitle>
+
+<h1>Scoring</h1>
+
+@if (_tournaments is null)
+{
+    <p>Loading…</p>
+}
+else if (_tournaments.Count == 0)
+{
+    <p class="notice">No tournaments are in progress.</p>
+}
+else
+{
+    <p>Choose a tournament to see its matches.</p>
+    <ul class="cards">
+        @foreach (var tournament in _tournaments)
+        {
+            <li>
+                <a href="/referee/tournaments/@tournament.Id">
+                    <strong>@tournament.Name</strong>
+                    <span class="muted">@tournament.EntryCount entries</span>
+                </a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<TournamentSummaryDto>? _tournaments;
+
+    protected override async Task OnInitializedAsync() =>
+        _tournaments = await Queries.ListAsync(TournamentStatus.InProgress, CancellationToken.None);
+}
