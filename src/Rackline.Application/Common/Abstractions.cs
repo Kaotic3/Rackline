@@ -30,4 +30,12 @@ internal static class TournamentRepositoryExtensions
 {
     public static async Task<Tournament> GetAsync(this ITournamentRepository repository, Guid id, CancellationToken cancellationToken) =>
         await repository.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Tournament", id);
+
+    public static async Task<Tournament> GetWithMatchAsync(this ITournamentRepository repository, Guid id, int matchNumber, CancellationToken cancellationToken)
+    {
+        var tournament = await repository.GetAsync(id, cancellationToken);
+        return tournament.Matches.Any(m => m.Number == matchNumber)
+            ? tournament
+            : throw new NotFoundException("Match", matchNumber);
+    }
 }

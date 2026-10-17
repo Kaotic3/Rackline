@@ -14,6 +14,7 @@ public class TournamentUseCaseTests
     private readonly InMemoryTournaments _tournaments = new();
     private readonly FakeReferences _references = new();
     private readonly FixedTime _time = new(Now);
+    private readonly RecordingNotifier _notifier = new();
     private readonly Guid _organisationId = Guid.CreateVersion7();
 
     private readonly TournamentLifecycle _lifecycle;
@@ -24,10 +25,10 @@ public class TournamentUseCaseTests
     public TournamentUseCaseTests()
     {
         _references.Organisations.Add(_organisationId);
-        _lifecycle = new TournamentLifecycle(_tournaments, _references);
-        _entries = new TournamentEntries(_tournaments, _references);
-        _draws = new TournamentDraws(_tournaments);
-        _results = new MatchResults(_tournaments, _references, _time);
+        _lifecycle = new TournamentLifecycle(_tournaments, _references, _notifier);
+        _entries = new TournamentEntries(_tournaments, _references, _notifier);
+        _draws = new TournamentDraws(_tournaments, _notifier);
+        _results = new MatchResults(_tournaments, _references, _notifier, _time);
     }
 
     private static TournamentSettings Settings(TournamentFormat format = TournamentFormat.SingleElimination) =>
@@ -213,5 +214,43 @@ public class TournamentUseCaseTests
         _tournaments.FailNextSave = true;
 
         await FluentActions.Awaiting(() => _lifecycle.OpenRegistrationAsync(id)).Should().ThrowAsync<ConflictException>();
+    }
+
+    [Fact]
+    public async Task Status_draw_and_entry_changes_are_announced_after_saving()
+    {
+        var id = await TournamentWithPlayersAsync(2);
+        await _draws.MakeAsync(id, 1);
+        await _lifecycle.StartAsync(id);
+
+        _notifier.Statuses.Should().Equal(
+            TournamentStatus.Registration,
+            TournamentStatus.Registration,
+            TournamentStatus.Registration,
+            TournamentStatus.Drawn,
+            TournamentStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task Nothing_is_announced_when_saving_fails()
+    {
+        var id = await _lifecycle.CreateAsync(_organisationId, Settings());
+        _tournaments.FailNextSave = true;
+
+        await FluentActions.Awaiting(() => _lifecycle.OpenRegistrationAsync(id)).Should().ThrowAsync<ConflictException>();
+        _notifier.Statuses.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_result_announces_the_match_and_the_match_it_fed()
+    {
+        var id = await TournamentWithPlayersAsync(4);
+        await _draws.MakeAsync(id, 5);
+        await _lifecycle.StartAsync(id);
+
+        await _results.RecordResultAsync(id, 1, 5, 0);
+
+        _notifier.MatchBatches.Should().ContainSingle()
+            .Which.Select(m => m.Number).Should().Equal(1, 3);
     }
 }

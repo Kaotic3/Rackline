@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rackline.Application.Common;
+using Rackline.Application.Live;
 using Rackline.Application.Tournaments;
 using Rackline.Infrastructure.Identity;
+using Rackline.Infrastructure.Live;
 using Rackline.Infrastructure.Persistence;
+using Rackline.Web.Live;
 
 namespace Rackline.Web.Api;
 
@@ -19,6 +22,12 @@ internal static class ApiServiceCollectionExtensions
         services.AddScoped<TournamentEntries>();
         services.AddScoped<TournamentDraws>();
         services.AddScoped<MatchResults>();
+        services.AddScoped<LiveScoring>();
+
+        services.AddSingleton<LiveFeed>();
+        services.AddScoped<ILiveNotifier, SignalRLiveNotifier<LiveHub>>();
+        services.AddSignalR()
+            .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         services.AddProblemDetails();
         services.AddExceptionHandler<ApiExceptionHandler>();
@@ -57,6 +66,7 @@ internal static class ApiServiceCollectionExtensions
             .MapPlayerEndpoints()
             .MapUserEndpoints();
 
+        app.MapHub<LiveHub>("/hubs/live");
         return app;
     }
 

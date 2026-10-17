@@ -95,6 +95,18 @@ internal static class TournamentEndpoints
             return await DetailAsync(id, queries, ct);
         });
 
+        score.MapPost("/frames", async (Guid id, int number, RecordFrameRequest request, LiveScoring scoring, ITournamentQueries queries, CancellationToken ct) =>
+        {
+            await scoring.RecordFrameAsync(id, number, request.WinnerSlot!.Value, request.BreakAndRun, request.Points1, request.Points2, ct);
+            return await DetailAsync(id, queries, ct);
+        });
+
+        score.MapDelete("/frames/last", async (Guid id, int number, LiveScoring scoring, ITournamentQueries queries, CancellationToken ct) =>
+        {
+            await scoring.UndoLastFrameAsync(id, number, ct);
+            return await DetailAsync(id, queries, ct);
+        });
+
         return api;
     }
 

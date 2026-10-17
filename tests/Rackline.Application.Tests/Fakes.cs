@@ -1,4 +1,6 @@
 using Rackline.Application.Common;
+using Rackline.Application.Live;
+using Rackline.Application.Tournaments;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tests;
@@ -59,4 +61,23 @@ internal sealed class FixedTime(DateTimeOffset now) : TimeProvider
     public DateTimeOffset Now { get; set; } = now;
 
     public override DateTimeOffset GetUtcNow() => Now;
+}
+
+internal sealed class RecordingNotifier : ILiveNotifier
+{
+    public List<IReadOnlyList<MatchDto>> MatchBatches { get; } = [];
+
+    public List<TournamentStatus> Statuses { get; } = [];
+
+    public Task MatchesChangedAsync(Guid tournamentId, IReadOnlyList<MatchDto> matches, CancellationToken cancellationToken)
+    {
+        MatchBatches.Add(matches);
+        return Task.CompletedTask;
+    }
+
+    public Task TournamentChangedAsync(Guid tournamentId, TournamentStatus status, CancellationToken cancellationToken)
+    {
+        Statuses.Add(status);
+        return Task.CompletedTask;
+    }
 }

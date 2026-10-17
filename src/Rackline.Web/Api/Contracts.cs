@@ -53,6 +53,12 @@ public sealed record RecordResultRequest(
 
 public sealed record AwardWalkoverRequest([Required] Guid? WinnerEntryId);
 
+public sealed record RecordFrameRequest(
+    [Required, Range(1, 2)] int? WinnerSlot,
+    bool BreakAndRun = false,
+    [Range(0, 999)] int? Points1 = null,
+    [Range(0, 999)] int? Points2 = null);
+
 public sealed record SetRolesRequest([Required] string[] Roles);
 
 public sealed record DrawResponse(int RandomSeed, TournamentDetailDto Tournament);
