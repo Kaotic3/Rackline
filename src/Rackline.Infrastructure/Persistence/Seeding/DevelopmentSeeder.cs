@@ -6,6 +6,7 @@ using Rackline.Domain.Matches;
 using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
 using Rackline.Domain.Rankings;
+using Rackline.Domain.Standings;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Infrastructure.Persistence.Seeding;
@@ -53,25 +54,35 @@ public static class DevelopmentSeeder
 
         db.Players.AddRange(players);
 
-        db.Tournaments.AddRange(
-            SpringOpen(federation, players, tables),
+        var ranking = NineBallRanking(federation);
+        db.Rankings.Add(ranking);
+
+        Tournament[] tournaments =
+        [
+            SpringOpen(federation, players, tables, ranking),
             ClubNight(club, players),
             SnookerClassic(club, players),
-            WinterClassic(federation, players, tables));
+            WinterClassic(federation, players, tables, ranking),
+        ];
+        db.Tournaments.AddRange(tournaments);
+
+        // Ratings come from the results above, exactly as if each had been rated when it was played.
+        var (ratings, changes) = Elo.Replay(tournaments.SelectMany(RatedResult.From));
+        db.Ratings.AddRange(ratings);
+        db.RatingChanges.AddRange(changes);
 
         db.Leagues.Add(TuesdayLeague(club, venue, players));
-        db.Rankings.Add(NineBallRanking(federation, players));
-        db.Ratings.AddRange(players.Select((p, i) => Rated(p, 1650 - i * 15)));
         db.Challenges.Add(AcceptedChallenge(players));
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>A 16-player double-elimination event part-way through its first round.</summary>
-    private static Tournament SpringOpen(Organisation owner, List<Player> players, List<Table> tables)
+    /// <summary>A 16-player double-elimination ranking event part-way through its first round.</summary>
+    private static Tournament SpringOpen(Organisation owner, List<Player> players, List<Table> tables, Ranking ranking)
     {
         var tournament = new Tournament(owner.Id, "Eastbridge Spring Open", Discipline.NineBall,
             TournamentFormat.DoubleElimination, MatchLength.RaceTo(7));
+        tournament.CountTowards(ranking);
         tournament.OpenRegistration();
         for (var i = 0; i < players.Count; i++)
         {
@@ -127,12 +138,13 @@ public static class DevelopmentSeeder
 
     /// <summary>
     /// A finished 8-player 9-ball knockout, scored frame by frame, so profiles and head-to-heads have history.
-    /// The better seed wins every match except one upset in the first round.
+    /// The better seed wins every match except one upset in the first round. It counts towards the ranking.
     /// </summary>
-    private static Tournament WinterClassic(Organisation owner, List<Player> players, List<Table> tables)
+    private static Tournament WinterClassic(Organisation owner, List<Player> players, List<Table> tables, Ranking ranking)
     {
         var tournament = new Tournament(owner.Id, "Winter Nine-Ball Classic", Discipline.NineBall,
             TournamentFormat.SingleElimination, MatchLength.RaceTo(5));
+        tournament.CountTowards(ranking);
         tournament.OpenRegistration();
         var seeds = players.Take(8).Select((p, i) => tournament.AddEntry(p.Id, seed: i + 1)).ToList();
         var seedOf = seeds.ToDictionary(e => e.Id, e => e.Seed!.Value);
@@ -163,6 +175,8 @@ public static class DevelopmentSeeder
         }
 
         tournament.Complete();
+        var playerOf = tournament.Entries.ToDictionary(e => e.Id, e => e.PlayerId);
+        ranking.AwardTournament(tournament.Id, FinishingPositions.Calculate(tournament).Select(p => (playerOf[p.EntryId], p.Position)));
         return tournament;
     }
 
@@ -224,23 +238,8 @@ public static class DevelopmentSeeder
         return league;
     }
 
-    private static Ranking NineBallRanking(Organisation owner, List<Player> players)
-    {
-        var ranking = new Ranking(owner.Id, Discipline.NineBall, "2026");
-        for (var i = 0; i < 8; i++)
-        {
-            ranking.AwardPoints(players[i].Id, 100 - i * 10);
-        }
-
-        return ranking;
-    }
-
-    private static Rating Rated(Player player, double value)
-    {
-        var rating = new Rating(player.Id, Discipline.NineBall);
-        rating.Apply(value);
-        return rating;
-    }
+    private static Ranking NineBallRanking(Organisation owner) =>
+        new(owner.Id, "Northland 9-ball rankings", Discipline.NineBall, "2026", [100, 75, 55, 40, 25, 15], participationPoints: 5);
 
     private static Challenge AcceptedChallenge(List<Player> players)
     {

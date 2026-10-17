@@ -32,6 +32,8 @@ public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> option
 
     public DbSet<Rating> Ratings => Set<Rating>();
 
+    public DbSet<RatingChange> RatingChanges => Set<RatingChange>();
+
     public DbSet<Challenge> Challenges => Set<Challenge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
