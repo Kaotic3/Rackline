@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Rackline.Domain.Challenges;
 using Rackline.Domain.Common;
@@ -7,10 +9,12 @@ using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
 using Rackline.Domain.Rankings;
 using Rackline.Domain.Tournaments;
+using Rackline.Infrastructure.Identity;
 
 namespace Rackline.Infrastructure.Persistence;
 
-public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> options) : DbContext(options)
+public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Organisation> Organisations => Set<Organisation>();
 
@@ -32,7 +36,17 @@ public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> option
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(RacklineDbContext).Assembly);
+
+        // Roles are reference data, so every environment gets them from the migration.
+        modelBuilder.Entity<IdentityRole<Guid>>().HasData(Application.Common.Roles.All.Select(r => new IdentityRole<Guid>
+        {
+            Id = r.Id,
+            Name = r.Name,
+            NormalizedName = r.Name.ToUpperInvariant(),
+            ConcurrencyStamp = r.Id.ToString(),
+        }));
 
         // Ids are created by the domain, so EF must never treat a set key as "already saved".
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(Entity).IsAssignableFrom(t.ClrType)))
