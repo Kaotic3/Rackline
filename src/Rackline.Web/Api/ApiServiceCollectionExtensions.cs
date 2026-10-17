@@ -96,9 +96,11 @@ internal static class ApiServiceCollectionExtensions
 
     public static WebApplication MapRacklineApi(this WebApplication app)
     {
-        app.MapGroup("/api/auth").WithTags("Auth").MapIdentityApi<ApplicationUser>();
+        app.MapGroup("/api/auth").WithTags("Auth").RequireRateLimiting(PublicApi.RateLimitPolicy).MapIdentityApi<ApplicationUser>();
 
         app.MapGroup("/api")
+            .RequireCors(PublicApi.CorsPolicy)
+            .RequireRateLimiting(PublicApi.RateLimitPolicy)
             .MapTournamentEndpoints()
             .MapPlayerEndpoints()
             .MapUserEndpoints()
@@ -107,6 +109,7 @@ internal static class ApiServiceCollectionExtensions
             .MapOrganisationEndpoints()
             .MapChallengeEndpoints();
 
+        app.MapOpenApi("/openapi/{documentName}.json").RequireCors(PublicApi.CorsPolicy);
         app.MapHub<LiveHub>("/hubs/live");
 
         // Sign-out for the pages: a form post, protected by antiforgery.

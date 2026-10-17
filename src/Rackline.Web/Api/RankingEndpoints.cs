@@ -13,10 +13,12 @@ internal static class RankingEndpoints
     {
         var rankings = api.MapGroup("/rankings").WithTags("Rankings");
 
-        rankings.MapGet("/", (IRankingQueries queries, CancellationToken ct) => queries.ListAsync(ct));
+        rankings.MapGet("/", (IRankingQueries queries, CancellationToken ct) => queries.ListAsync(ct))
+            .WithSummary("Rankings.");
 
         rankings.MapGet("/{id:guid}", async (Guid id, IRankingQueries queries, CancellationToken ct) =>
-            await queries.GetAsync(id, ct) ?? throw new NotFoundException("Ranking", id));
+            await queries.GetAsync(id, ct) ?? throw new NotFoundException("Ranking", id))
+            .WithSummary("One ranking: the table, the points scheme and the tournaments that count.");
 
         rankings.MapPost("/", async (CreateRankingRequest request, RankingSetup setup, IRankingQueries queries, CancellationToken ct) =>
         {
@@ -29,7 +31,8 @@ internal static class RankingEndpoints
 
         var ratings = api.MapGroup("/ratings").WithTags("Ratings");
 
-        ratings.MapGet("/", (Discipline discipline, IRatingQueries queries, CancellationToken ct) => queries.LeaderboardAsync(discipline, ct));
+        ratings.MapGet("/", (Discipline discipline, IRatingQueries queries, CancellationToken ct) => queries.LeaderboardAsync(discipline, ct))
+            .WithSummary("The rating leaderboard for one discipline (?discipline=NineBall, for example).");
 
         ratings.MapPost("/rebuild", async (RatingRebuild rebuild, CancellationToken ct) => new RebuildRatingsResponse(await rebuild.RebuildAsync(ct)))
             .RequireAuthorization(Policies.RebuildRatings);
@@ -40,12 +43,14 @@ internal static class RankingEndpoints
         {
             var profile = await players.GetProfileAsync(id, ct) ?? throw new NotFoundException("Player", id);
             return new PlayerRatingsResponse(profile.Ratings, await queries.HistoryAsync(id, HistoryLimit, ct));
-        });
+        })
+        .WithSummary("A player's ratings and their last 50 rating changes.");
 
         player.MapGet("/rankings", async (Guid id, IReferenceData references, IRankingQueries queries, CancellationToken ct) =>
             await references.PlayerExistsAsync(id, ct)
                 ? await queries.ForPlayerAsync(id, ct)
-                : throw new NotFoundException("Player", id));
+                : throw new NotFoundException("Player", id))
+            .WithSummary("Where a player stands in each ranking they have points in.");
 
         return api;
     }

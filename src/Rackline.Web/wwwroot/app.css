@@ -699,3 +699,22 @@ details > summary {
     border: 1px solid var(--line);
     border-radius: var(--radius);
 }
+
+/* ---- Footer ---- */
+
+.site-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    max-width: 72rem;
+    margin: 2rem auto 0;
+    padding: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+code {
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Rackline.Application.Common;
 using Rackline.Application.Tournaments;
 using Rackline.Domain.Tournaments;
@@ -10,12 +11,18 @@ internal static class TournamentEndpoints
     {
         var tournaments = api.MapGroup("/tournaments").WithTags("Tournaments");
 
-        // Reading is public.
-        tournaments.MapGet("/", (TournamentStatus? status, ITournamentQueries queries, CancellationToken ct) =>
-            queries.ListAsync(status, ct));
+        // Reading is public, except drafts: as on the site, a tournament is public once registration opens.
+        // Signed-in users still see drafts, so organisers can work on theirs.
+        tournaments.MapGet("/", async (TournamentStatus? status, ClaimsPrincipal user, ITournamentQueries queries, CancellationToken ct) =>
+            (await queries.ListAsync(status, ct)).Where(t => t.Status != TournamentStatus.Draft || IsSignedIn(user)).ToList())
+            .WithSummary("Tournaments, optionally only those with one status. Drafts are not public.");
 
-        tournaments.MapGet("/{id:guid}", (Guid id, ITournamentQueries queries, CancellationToken ct) =>
-            DetailAsync(id, queries, ct));
+        tournaments.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, ITournamentQueries queries, CancellationToken ct) =>
+            await queries.GetAsync(id, ct) is { } detail && (detail.Status != TournamentStatus.Draft || IsSignedIn(user))
+                ? Results.Ok(detail)
+                : throw new NotFoundException("Tournament", id))
+            .Produces<TournamentDetailDto>()
+            .WithSummary("A tournament with its entries and every match in the draw.");
 
         var manage = tournaments.MapGroup("").RequireAuthorization(Policies.ManageTournaments);
 
@@ -109,6 +116,8 @@ internal static class TournamentEndpoints
 
         return api;
     }
+
+    private static bool IsSignedIn(ClaimsPrincipal user) => user.Identity?.IsAuthenticated == true;
 
     private static void MapTransition(RouteGroupBuilder group, string pattern, Func<TournamentLifecycle, Guid, CancellationToken, Task> transition) =>
         group.MapPost(pattern, async (Guid id, TournamentLifecycle lifecycle, ITournamentQueries queries, CancellationToken ct) =>

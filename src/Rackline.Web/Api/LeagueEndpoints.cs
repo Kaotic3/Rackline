@@ -9,10 +9,12 @@ internal static class LeagueEndpoints
     {
         var leagues = api.MapGroup("/leagues").WithTags("Leagues");
 
-        leagues.MapGet("/", (ILeagueQueries queries, CancellationToken ct) => queries.ListAsync(ct));
+        leagues.MapGet("/", (ILeagueQueries queries, CancellationToken ct) => queries.ListAsync(ct))
+            .WithSummary("Leagues, with their seasons.");
 
         leagues.MapGet("/{id:guid}", async (Guid id, ILeagueQueries queries, CancellationToken ct) =>
-            await queries.GetAsync(id, ct) ?? throw new NotFoundException("League", id));
+            await queries.GetAsync(id, ct) ?? throw new NotFoundException("League", id))
+            .WithSummary("One league, with its seasons.");
 
         var manageLeagues = leagues.MapGroup("").RequireAuthorization(Policies.ManageLeagues);
 
@@ -30,7 +32,8 @@ internal static class LeagueEndpoints
 
         var seasons = api.MapGroup("/seasons/{id:guid}").WithTags("Leagues");
 
-        seasons.MapGet("/", (Guid id, ILeagueQueries queries, CancellationToken ct) => SeasonAsync(id, queries, ct));
+        seasons.MapGet("/", (Guid id, ILeagueQueries queries, CancellationToken ct) => SeasonAsync(id, queries, ct))
+            .WithSummary("A season: rules, teams and rosters, fixtures and rubbers, and the league table.");
 
         var manage = seasons.MapGroup("").RequireAuthorization(Policies.ManageLeagues);
 

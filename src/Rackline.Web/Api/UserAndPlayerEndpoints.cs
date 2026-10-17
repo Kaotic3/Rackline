@@ -12,7 +12,8 @@ internal static class UserAndPlayerEndpoints
     public static RouteGroupBuilder MapPlayerEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/players", (string? search, IPlayerQueries players, CancellationToken ct) => players.ListAsync(search, ct))
-            .WithTags("Players");
+            .WithTags("Players")
+            .WithSummary("Players, optionally filtered by name (?search=).");
         return api;
     }
 

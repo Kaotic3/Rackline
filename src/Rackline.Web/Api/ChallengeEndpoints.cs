@@ -29,17 +29,20 @@ internal static class ChallengeEndpoints
         var challenges = api.MapGroup("/challenges").WithTags("Challenges");
 
         challenges.MapGet("/", (Guid? playerId, int? limit, IChallengeQueries queries, CancellationToken ct) =>
-            queries.ListAsync(playerId, Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit), ct));
+            queries.ListAsync(playerId, Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit), ct))
+            .WithSummary("Challenges, newest first; only one player's with ?playerId=. At most 200 (?limit=).");
 
         challenges.MapGet("/{id:guid}", async (Guid id, IChallengeQueries queries, CancellationToken ct) =>
-            await queries.GetAsync(id, ct) ?? throw new NotFoundException("Challenge", id));
+            await queries.GetAsync(id, ct) ?? throw new NotFoundException("Challenge", id))
+            .WithSummary("One challenge: the result, whether it counted towards ratings, and if not, why not.");
 
         // Anyone may ask whether a challenge would count: ratings are public anyway.
         challenges.MapGet("/preview", async (Guid player1, Guid player2, Discipline discipline, ChallengeRecording recording, CancellationToken ct) =>
         {
             var assessment = await recording.PreviewAsync(player1, player2, discipline, ct);
             return new ChallengePreviewDto(assessment.Counts, assessment.Reasons);
-        });
+        })
+        .WithSummary("Whether a challenge between two players would count towards ratings if recorded now.");
 
         challenges.MapPost("/", async (RecordChallengeRequest request, ChallengeRecording recording, IChallengeQueries queries, CancellationToken ct) =>
         {
