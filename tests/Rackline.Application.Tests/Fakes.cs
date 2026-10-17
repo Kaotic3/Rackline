@@ -1,7 +1,9 @@
 using Rackline.Application.Common;
 using Rackline.Application.Live;
 using Rackline.Application.Tournaments;
+using Rackline.Domain.Common;
 using Rackline.Domain.Leagues;
+using Rackline.Domain.Rankings;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Application.Tests;
@@ -107,6 +109,58 @@ internal sealed class InMemoryLeagues : ILeagueRepository
         _pending.ForEach(l => _saved[l.Id] = l);
         _pending.Clear();
         SaveCount++;
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class InMemoryRankings : IRankingRepository
+{
+    private readonly Dictionary<Guid, Ranking> _saved = [];
+    private readonly List<Ranking> _pending = [];
+
+    public IReadOnlyCollection<Ranking> Saved => _saved.Values;
+
+    public Task<Ranking?> FindAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(_saved.GetValueOrDefault(id));
+
+    public void Add(Ranking ranking) => _pending.Add(ranking);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        _pending.ForEach(r => _saved[r.Id] = r);
+        _pending.Clear();
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Ratings kept in memory. Real repositories save with the tournament; here changes apply at once.</summary>
+internal sealed class InMemoryRatings : IRatingRepository
+{
+    public List<Rating> Ratings { get; } = [];
+
+    public List<RatingChange> Changes { get; } = [];
+
+    /// <summary>What <see cref="ListRatedResultsAsync"/> returns.</summary>
+    public List<RatedResult> History { get; } = [];
+
+    public Rating? For(Guid playerId, Discipline discipline) =>
+        Ratings.SingleOrDefault(r => r.PlayerId == playerId && r.Discipline == discipline);
+
+    public Task<Rating?> FindAsync(Guid playerId, Discipline discipline, CancellationToken cancellationToken) =>
+        Task.FromResult(For(playerId, discipline));
+
+    public void Add(Rating rating) => Ratings.Add(rating);
+
+    public void Add(RatingChange change) => Changes.Add(change);
+
+    public Task<IReadOnlyList<RatedResult>> ListRatedResultsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<RatedResult>>([.. History]);
+
+    public Task ReplaceAllAsync(IReadOnlyList<Rating> ratings, IReadOnlyList<RatingChange> changes, CancellationToken cancellationToken)
+    {
+        Ratings.Clear();
+        Ratings.AddRange(ratings);
+        Changes.Clear();
+        Changes.AddRange(changes);
         return Task.CompletedTask;
     }
 }

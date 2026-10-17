@@ -204,7 +204,7 @@ _(Append decisions here as they are made.)_
   - Completing a match and awarding a walkover are `internal` to the domain. They go through `Bracket`/`Tournament` so that progression always runs.
 - **Scope**
   - The `GroupsThenKnockout` and `Swiss` formats throw "not supported yet".
-  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10. (Leagues done in M6.)
+  - League, Ranking, Rating and Challenge are minimal entities. Their behaviour comes in M6, M7 and M10. (Leagues done in M6; rankings and ratings in M7.)
 
 ### M2
 
@@ -454,3 +454,53 @@ _(Append decisions here as they are made.)_
     - The handler now reads the original path from `IExceptionHandlerPathFeature`, and writes problem JSON itself if the shared writer declines.
     - A regression test forces an API crash and checks for problem JSON with no internal details. The test was shown to fail without the fix.
   - **The site header ran off the edge on phones.** It now wraps on narrow screens.
+
+### M7
+
+- **Ratings: Elo, not Glicko-2**
+  - Elo is the simpler of the two named options.
+  - Everyone starts at 1500. A match moves each player by K × (result − expected result), where the expected result is 1 / (1 + 10^((opponent − player) / 400)).
+  - Only win or lose counts; the frame margin does not.
+  - K is 32 for a player's first 20 rated matches (shown as "provisional") and 16 after that. Each player's own K is used, so the change is not always zero-sum.
+  - Ratings are per player per discipline.
+- **What is rated**
+  - Tournament matches completed by a result, between two entries. Walkovers and byes are not rated, because no frames were played.
+  - Rating happens in the same save as the result: `RecordResult`, or the deciding frame in `LiveScoring`. If the save fails, nothing is rated.
+  - League rubbers are not rated yet: a corrected fixture result replaces its rubbers, which would need ratings to be undone. Challenges come in M10.
+  - Matches in a tournament that is later cancelled still count, as they were played.
+- **Rating history**
+  - Each rated match stores a `RatingChange` for each player (before, after, opponent, match, time).
+  - A unique index on (player, match) stops a match being rated twice. `Rating` uses Postgres `xmin`, so two results for the same player cannot overwrite each other unseen (the second gets 409).
+  - `MatchId` is not a foreign key, so the history survives if a cancelled tournament is deleted.
+- **Rebuild**
+  - `Elo.Replay` rates a whole history from scratch, oldest first. Tests check it gives the same answer as rating results one at a time.
+  - `POST /api/ratings/rebuild` (Admin only, `RebuildRatings`) replaces every rating and change from the stored results, in one transaction. Use it after a formula change or to tidy up older data.
+  - The seeder builds its ratings with the same replay, so they match its results exactly.
+- **Finishing positions (`FinishingPositions`)**
+  - Knockouts: the champion is first. Everyone else is placed by the stage at which they went out, and players out at the same stage share a position (so 1, 2, 3, 3, 5, 5, 5, 5).
+  - Double elimination places players by the losers' bracket round or grand final of their second loss.
+  - Round robin places players by their group position. With several groups, every group winner shares first place, and so on.
+  - The final tie-break in group tables (domain and public pages) is now seed, then entry id, as the draw order is not stored.
+- **Rankings**
+  - A ranking has a name, an organisation, a discipline, a season, points for 1st, 2nd and so on (up to 64 places), and points for everyone below that. Points may never rise for a lower place.
+  - A tournament counts towards at most one ranking, set by `rankingId` on create or update, before the draw. It must be the same organisation and discipline. A national ranking taking regional events waits for the hierarchy in M8.
+  - Points are awarded when the tournament is completed, in the same save. Cancelled tournaments award nothing.
+  - Awards are stored per tournament and player (`RankingAwards`, keyed by ranking, tournament and player), so a tournament can count only once, and the table can be explained.
+  - The table totals the points. Players on equal points share a position.
+  - The points scheme cannot be changed after creation yet.
+- **Migration (`RankingsAndRatings`)**
+  - Replaces `RankingEntries` with `RankingAwards`, adds the ranking name and points scheme, `Tournament.RankingId` and `RatingChanges`.
+  - Old ranking totals had no tournaments behind them, so they are dropped. Existing rankings get a name and a default points scheme. Existing ratings are kept; a rebuild replaces them.
+  - It was checked by migrating a database seeded with the M6 code. Dropping and re-seeding the local database is still the cleanest way to get the new sample data.
+- **API** (under `/api`)
+  - `rankings`: `GET`, `GET {id}` (table, points scheme and tournaments) and `POST` (`ManageRankings`: Admin or Organiser).
+  - `ratings?discipline=`: the leaderboard. `POST ratings/rebuild`: Admin only.
+  - `players/{id}/ratings` (ratings and the last 50 changes) and `players/{id}/rankings`.
+  - Tournament details now include `rankingId` and `rankingName`.
+- **Pages** (static SSR)
+  - `/rankings` and `/rankings/{id}`: table, points scheme, and the tournaments that count.
+  - `/ratings`: a leaderboard per discipline, with provisional ratings marked. Players on exactly the same rating share a position.
+  - Player profiles show ratings, ranking positions and the last 10 rating changes. Tournament pages link to their ranking.
+  - "Rankings" and "Ratings" are in the site header.
+- **Seed data**
+  - "Northland 9-ball rankings" (2026). The Winter Nine-Ball Classic has awarded its points, and the Eastbridge Spring Open counts towards it.

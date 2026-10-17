@@ -624,3 +624,31 @@ details > summary {
 .rubber-entry input[type=number] {
     width: 4.5rem;
 }
+
+/* ---- Rankings and ratings ---- */
+
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 1rem 0;
+}
+
+.tabs a {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    text-decoration: none;
+}
+
+.tabs a[aria-current="page"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+}
+
+.points-step {
+    display: inline-block;
+    margin: 0 1rem 0.3rem 0;
+}

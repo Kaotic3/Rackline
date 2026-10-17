@@ -1,0 +1,73 @@
+@page "/ratings"
+@inject IRatingQueries Queries
+
+<PageTitle>@(_discipline is { } d ? $"{Labels.Of(d)} ratings" : "Ratings") · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Player ratings for cue sports, updated after every match." /></HeadContent>
+
+<h1>Ratings</h1>
+
+<p>
+    Every match played to a result moves both players' ratings: beating a higher-rated player gains more than beating a lower-rated one.
+    Walkovers and byes do not count. Everyone starts at @Labels.Rating(Rating.Initial).
+</p>
+
+@if (_discipline is not { } discipline)
+{
+    <p class="notice">Nobody has a rating yet.</p>
+}
+else
+{
+    <nav class="tabs" aria-label="Discipline">
+        @foreach (var option in _disciplines)
+        {
+            <a href="/ratings?discipline=@option" aria-current="@(option == discipline ? "page" : null)">@Labels.Of(option)</a>
+        }
+    </nav>
+
+    <div class="table-wrap">
+        <table class="standings">
+            <thead>
+                <tr>
+                    <th scope="col">Pos</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Rating</th>
+                    <th scope="col">Rated matches</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <td>@row.Position</td>
+                        <td><a class="player" href="/players/@row.PlayerId">@row.PlayerName</a> <span class="muted">@row.Nationality</span></td>
+                        <td><strong>@Labels.Rating(row.Value)</strong>@if (row.IsProvisional) { <span class="muted" title="Fewer than @Elo.ProvisionalMatches rated matches">*</span> }</td>
+                        <td>@row.MatchesPlayed</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="muted">* Provisional: fewer than @Elo.ProvisionalMatches rated matches, so the rating still moves quickly.</p>
+}
+
+@code {
+    private IReadOnlyList<Discipline> _disciplines = [];
+    private IReadOnlyList<RatingRowDto> _rows = [];
+    private Discipline? _discipline;
+
+    [SupplyParameterFromQuery(Name = "discipline")]
+    public string? DisciplineName { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _disciplines = await Queries.RatedDisciplinesAsync(CancellationToken.None);
+        _discipline = Enum.TryParse<Discipline>(DisciplineName, ignoreCase: true, out var chosen) && _disciplines.Contains(chosen)
+            ? chosen
+            : _disciplines.Count > 0 ? _disciplines[0] : null;
+
+        if (_discipline is { } discipline)
+        {
+            _rows = await Queries.LeaderboardAsync(discipline, CancellationToken.None);
+        }
+    }
+}

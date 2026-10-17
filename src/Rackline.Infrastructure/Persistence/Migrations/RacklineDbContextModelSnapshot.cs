@@ -671,8 +671,20 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("ParticipationPoints")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<int[]>("PointsByPosition")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
 
                     b.Property<string>("Season")
                         .IsRequired()
@@ -706,12 +718,65 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.Property<double>("Value")
                         .HasColumnType("double precision");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Discipline", "Value");
 
                     b.HasIndex("PlayerId", "Discipline")
                         .IsUnique();
 
                     b.ToTable("Ratings");
+                });
+
+            modelBuilder.Entity("Rackline.Domain.Rankings.RatingChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("After")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("Before")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Discipline")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OpponentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PlayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Won")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId");
+
+                    b.HasIndex("OpponentId");
+
+                    b.HasIndex("PlayerId", "MatchId")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId", "Discipline", "At");
+
+                    b.ToTable("RatingChanges");
                 });
 
             modelBuilder.Entity("Rackline.Domain.Tournaments.Entry", b =>
@@ -768,6 +833,9 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("RankingId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -810,6 +878,8 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrganisationId");
+
+                    b.HasIndex("RankingId");
 
                     b.HasIndex("Status");
 
@@ -1124,9 +1194,12 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.OwnsMany("Rackline.Domain.Rankings.RankingEntry", "Entries", b1 =>
+                    b.OwnsMany("Rackline.Domain.Rankings.RankingAward", "Awards", b1 =>
                         {
                             b1.Property<Guid>("RankingId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<Guid>("TournamentId")
                                 .HasColumnType("uuid");
 
                             b1.Property<Guid>("PlayerId")
@@ -1135,11 +1208,16 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                             b1.Property<int>("Points")
                                 .HasColumnType("integer");
 
-                            b1.HasKey("RankingId", "PlayerId");
+                            b1.Property<int>("Position")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("RankingId", "TournamentId", "PlayerId");
 
                             b1.HasIndex("PlayerId");
 
-                            b1.ToTable("RankingEntries", (string)null);
+                            b1.HasIndex("TournamentId");
+
+                            b1.ToTable("RankingAwards", (string)null);
 
                             b1.HasOne("Rackline.Domain.Players.Player", null)
                                 .WithMany()
@@ -1149,13 +1227,34 @@ namespace Rackline.Infrastructure.Persistence.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("RankingId");
+
+                            b1.HasOne("Rackline.Domain.Tournaments.Tournament", null)
+                                .WithMany()
+                                .HasForeignKey("TournamentId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired();
                         });
 
-                    b.Navigation("Entries");
+                    b.Navigation("Awards");
                 });
 
             modelBuilder.Entity("Rackline.Domain.Rankings.Rating", b =>
                 {
+                    b.HasOne("Rackline.Domain.Players.Player", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rackline.Domain.Rankings.RatingChange", b =>
+                {
+                    b.HasOne("Rackline.Domain.Players.Player", null)
+                        .WithMany()
+                        .HasForeignKey("OpponentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Rackline.Domain.Players.Player", null)
                         .WithMany()
                         .HasForeignKey("PlayerId")
@@ -1185,6 +1284,11 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OrganisationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Rackline.Domain.Rankings.Ranking", null)
+                        .WithMany()
+                        .HasForeignKey("RankingId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Rackline.Domain.Leagues.League", b =>

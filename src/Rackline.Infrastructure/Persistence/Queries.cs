@@ -60,7 +60,9 @@ internal sealed class TournamentQueries(RacklineDbContext db) : ITournamentQueri
                         m.LoserTo == null ? null : new SlotLinkDto(m.LoserTo.MatchNumber, m.LoserTo.Slot),
                         m.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 1),
                         m.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 2)))
-                    .ToList()))
+                    .ToList(),
+                t.RankingId,
+                db.Rankings.Where(r => r.Id == t.RankingId).Select(r => r.Name).FirstOrDefault()))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
 

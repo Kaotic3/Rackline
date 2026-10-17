@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Rackline.Application.Common;
 using Rackline.Application.Leagues;
 using Rackline.Application.Players;
+using Rackline.Application.Rankings;
 using Rackline.Application.Tournaments;
 using Rackline.Application.Venues;
 using Rackline.Infrastructure.Identity;
@@ -26,6 +27,10 @@ public static class DependencyInjection
         services.AddScoped<IVenueQueries, VenueQueries>();
         services.AddScoped<ILeagueRepository, LeagueRepository>();
         services.AddScoped<ILeagueQueries, LeagueQueries>();
+        services.AddScoped<IRankingRepository, RankingRepository>();
+        services.AddScoped<IRatingRepository, RatingRepository>();
+        services.AddScoped<IRankingQueries, RankingQueries>();
+        services.AddScoped<IRatingQueries, RatingQueries>();
         return services;
     }
 

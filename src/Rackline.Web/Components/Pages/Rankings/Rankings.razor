@@ -1,0 +1,36 @@
+@page "/rankings"
+@inject IRankingQueries Queries
+
+<PageTitle>Rankings · Rackline</PageTitle>
+<HeadContent><meta name="description" content="Ranking tables for cue sports: points earned by finishing position in ranking tournaments." /></HeadContent>
+
+<h1>Rankings</h1>
+
+<p>Ranking tournaments award points by finishing position when they finish. <a href="/ratings">Ratings</a> are different: they move after every match played.</p>
+
+@if (_rankings.Count == 0)
+{
+    <p class="notice">There are no rankings yet.</p>
+}
+else
+{
+    <ul class="cards">
+        @foreach (var ranking in _rankings)
+        {
+            <li>
+                <a href="/rankings/@ranking.Id">
+                    <strong>@ranking.Name</strong>
+                    <span class="muted">
+                        @ranking.OrganisationName · @Labels.Of(ranking.Discipline) · @ranking.Season · @Labels.Count(ranking.TournamentsCounted, "tournament") counted
+                    </span>
+                </a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<RankingSummaryDto> _rankings = [];
+
+    protected override async Task OnInitializedAsync() => _rankings = await Queries.ListAsync(CancellationToken.None);
+}

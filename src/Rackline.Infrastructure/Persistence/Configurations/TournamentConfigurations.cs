@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Rackline.Domain.Matches;
 using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
+using Rackline.Domain.Rankings;
 using Rackline.Domain.Tournaments;
 
 namespace Rackline.Infrastructure.Persistence.Configurations;
@@ -38,7 +39,12 @@ internal sealed class TournamentConfiguration : IEntityTypeConfiguration<Tournam
             .HasForeignKey(m => m.TournamentId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne<Ranking>().WithMany()
+            .HasForeignKey(t => t.RankingId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(t => t.Status);
+        builder.HasIndex(t => t.RankingId);
 
         // Postgres xmin: a save fails if the row changed since it was loaded.
         builder.Property<uint>("Version").IsRowVersion();

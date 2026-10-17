@@ -188,12 +188,14 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
         season.RecordResult(firstFixture.Id, [new RubberResult(homePlayer, awayPlayer, 2, 1)], At.AddMonths(9));
         season.Reschedule(season.Fixtures.Single(f => f.Round == 2).Id, null);
 
-        var ranking = new Ranking(organisation.Id, Discipline.EnglishEightBall, "2027");
-        ranking.AwardPoints(players[0].Id, 25);
-        ranking.AwardPoints(players[1].Id, 40);
+        var ranking = new Ranking(organisation.Id, "Round Trip Rankings", Discipline.EnglishEightBall, "2027", [40, 25], participationPoints: 5);
+        var rankedTournament = new Tournament(organisation.Id, "Ranked Open", Discipline.EnglishEightBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(3));
+        rankedTournament.CountTowards(ranking);
+        ranking.AwardTournament(rankedTournament.Id, [(players[0].Id, 2), (players[1].Id, 1)]);
 
         var rating = new Rating(players[2].Id, Discipline.EnglishEightBall);
-        rating.Apply(1523.25);
+        var opponentRating = new Rating(players[3].Id, Discipline.EnglishEightBall);
+        var (ratingWon, ratingLost) = Elo.Rate(rating, opponentRating, Guid.CreateVersion7(), At);
 
         var challenge = new Challenge(players[2].Id, players[3].Id, Discipline.Heyball, MatchLength.RaceTo(3));
         challenge.Accept();
@@ -202,7 +204,7 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
         await using (var db = database.CreateContext())
         {
             db.Players.Update(players[0]);
-            db.AddRange(league, ranking, rating, challenge);
+            db.AddRange(league, ranking, rankedTournament, rating, opponentRating, ratingWon, ratingLost, challenge);
             await db.SaveChangesAsync();
         }
 
@@ -228,9 +230,14 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
             loadedSeason.Table().Single(r => r.TeamId == firstFixture.HomeTeamId).Points.Should().Be(3 + 1);
 
             var loadedRanking = await db.Rankings.SingleAsync(r => r.Id == ranking.Id);
-            loadedRanking.Table().Select(r => r.PlayerId).Should().Equal(players[1].Id, players[0].Id);
+            loadedRanking.PointsByPosition.Should().Equal(40, 25);
+            loadedRanking.ParticipationPoints.Should().Be(5);
+            loadedRanking.Table().Select(r => (r.PlayerId, r.Points)).Should().Equal((players[1].Id, 40), (players[0].Id, 25));
+            (await db.Tournaments.SingleAsync(t => t.Id == rankedTournament.Id)).RankingId.Should().Be(ranking.Id);
 
-            (await db.Ratings.SingleAsync(r => r.Id == rating.Id)).Should().BeEquivalentTo(new { Value = 1523.25, MatchesPlayed = 1 });
+            (await db.Ratings.SingleAsync(r => r.Id == rating.Id)).Should().BeEquivalentTo(new { Value = 1516.0, MatchesPlayed = 1 });
+            (await db.RatingChanges.SingleAsync(c => c.Id == ratingLost.Id)).Should().BeEquivalentTo(
+                new { PlayerId = players[3].Id, OpponentId = players[2].Id, Won = false, Before = 1500.0, After = 1484.0, At });
 
             var loadedChallenge = await db.Challenges.SingleAsync(c => c.Id == challenge.Id);
             loadedChallenge.Should().BeEquivalentTo(new { Status = ChallengeStatus.Completed, WinnerId = players[3].Id, CompletedAt = At });
@@ -313,8 +320,12 @@ public class SeederTests(PostgresDatabase database) : IClassFixture<PostgresData
             var season = (await db.Leagues.Include(l => l.Seasons).ThenInclude(s => s.Fixtures).SingleAsync()).Seasons.Single();
             season.Fixtures.Count(f => f.Status == Rackline.Domain.Leagues.FixtureStatus.Completed).Should().Be(6);
             season.Fixtures.Count(f => f.Status == Rackline.Domain.Leagues.FixtureStatus.Postponed).Should().Be(1);
-            (await db.Rankings.CountAsync()).Should().Be(1);
-            (await db.Ratings.CountAsync()).Should().Be(16);
+            var ranking = await db.Rankings.SingleAsync();
+            ranking.Awards.Should().HaveCount(8);
+            ranking.Table()[0].Points.Should().Be(100);
+            (await db.Ratings.CountAsync()).Should().BeGreaterThan(0);
+            (await db.Ratings.CountAsync()).Should().Be(await db.RatingChanges.Select(c => new { c.PlayerId, c.Discipline }).Distinct().CountAsync());
+            (await db.Ratings.SumAsync(r => r.MatchesPlayed)).Should().Be(await db.RatingChanges.CountAsync());
             (await db.Challenges.CountAsync()).Should().Be(1);
 
             var springOpen = await db.Tournaments.Include(t => t.Matches).SingleAsync(t => t.Name == "Eastbridge Spring Open");

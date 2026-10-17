@@ -1,6 +1,7 @@
 using Rackline.Domain.Common;
 using Rackline.Domain.Draws;
 using Rackline.Domain.Matches;
+using Rackline.Domain.Rankings;
 
 namespace Rackline.Domain.Tournaments;
 
@@ -47,6 +48,9 @@ public sealed class Tournament : Entity
 
     public TournamentStatus Status { get; private set; } = TournamentStatus.Draft;
 
+    /// <summary>The ranking that this tournament's finishing positions count towards, if any.</summary>
+    public Guid? RankingId { get; private set; }
+
     public IReadOnlyList<Entry> Entries => _entries;
 
     public IReadOnlyList<Match> Matches => _matches;
@@ -59,10 +63,27 @@ public sealed class Tournament : Entity
     public void Reconfigure(Discipline discipline, TournamentFormat format, MatchLength matchLength, FormatOptions? options = null)
     {
         RequireStatus(TournamentStatus.Draft, TournamentStatus.Registration);
+        Guard.That(RankingId is null || discipline == Discipline, "Take the tournament out of its ranking before changing the discipline.");
         Discipline = discipline;
         Format = format;
         MatchLength = matchLength;
         Options = options ?? FormatOptions.Default;
+    }
+
+    /// <summary>
+    /// Makes the tournament count towards a ranking of the same organisation and discipline, or
+    /// towards none. Only allowed before the draw.
+    /// </summary>
+    public void CountTowards(Ranking? ranking)
+    {
+        RequireStatus(TournamentStatus.Draft, TournamentStatus.Registration);
+        if (ranking is not null)
+        {
+            Guard.That(ranking.OrganisationId == OrganisationId, "A tournament can count only towards its own organisation's rankings.");
+            Guard.That(ranking.Discipline == Discipline, "The ranking must be for the tournament's discipline.");
+        }
+
+        RankingId = ranking?.Id;
     }
 
     /// <summary>A tournament can be deleted only if no draw is in play: draft, registration or cancelled.</summary>

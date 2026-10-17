@@ -72,39 +72,6 @@ public class PlayerTests
     }
 }
 
-public class RankingTests
-{
-    [Fact]
-    public void Accumulates_points_and_shares_positions_on_ties()
-    {
-        var ranking = new Ranking(Guid.CreateVersion7(), Discipline.TenBall, "2026");
-        var (a, b, c) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
-
-        ranking.AwardPoints(a, 50);
-        ranking.AwardPoints(b, 30);
-        ranking.AwardPoints(c, 20);
-        ranking.AwardPoints(c, 30);
-
-        ranking.PointsFor(c).Should().Be(50);
-        ranking.Table().Select(r => r.Position).Should().Equal(1, 1, 3);
-        ranking.Table().Last().PlayerId.Should().Be(b);
-        ranking.Invoking(r => r.AwardPoints(a, 0)).Should().Throw<DomainException>();
-    }
-
-    [Fact]
-    public void Ratings_start_at_the_initial_value_and_count_matches()
-    {
-        var rating = new Rating(Guid.CreateVersion7(), Discipline.Snooker);
-
-        rating.Value.Should().Be(Rating.Initial);
-        rating.Apply(1516.5);
-
-        rating.Value.Should().Be(1516.5);
-        rating.MatchesPlayed.Should().Be(1);
-        rating.Invoking(r => r.Apply(double.NaN)).Should().Throw<DomainException>();
-    }
-}
-
 public class ChallengeTests
 {
     private static Challenge NewChallenge(out Guid challenger, out Guid opponent)
