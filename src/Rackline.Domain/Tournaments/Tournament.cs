@@ -55,6 +55,19 @@ public sealed class Tournament : Entity
 
     public void Rename(string name) => Name = Guard.NotBlank(name, "Tournament name");
 
+    /// <summary>Changes how the tournament is played. Only allowed before the draw.</summary>
+    public void Reconfigure(Discipline discipline, TournamentFormat format, MatchLength matchLength, FormatOptions? options = null)
+    {
+        RequireStatus(TournamentStatus.Draft, TournamentStatus.Registration);
+        Discipline = discipline;
+        Format = format;
+        MatchLength = matchLength;
+        Options = options ?? FormatOptions.Default;
+    }
+
+    /// <summary>A tournament can be deleted only if no draw is in play: draft, registration or cancelled.</summary>
+    public bool CanBeDeleted => Status is TournamentStatus.Draft or TournamentStatus.Registration or TournamentStatus.Cancelled;
+
     public void OpenRegistration()
     {
         RequireStatus(TournamentStatus.Draft);
