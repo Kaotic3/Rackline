@@ -58,10 +58,12 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
 
         var opener = tournament.Matches.Where(m => m.State == MatchState.Ready).MinBy(m => m.Number)!;
         tournament.StartMatch(opener.Number, At, venue.Tables[0].Id);
-        opener.UpdateScore(3, 2);
-        opener.RecordFrame(1, breakAndRun: true);
-        opener.RecordFrame(2, points1: 12, points2: 40);
-        tournament.RecordResult(opener.Number, 5, 2, At.AddHours(1));
+        tournament.RecordFrame(opener.Number, 1, At, breakAndRun: true);
+        tournament.RecordFrame(opener.Number, 2, At, points1: 12, points2: 40);
+        for (var i = 0; i < 4; i++)
+        {
+            tournament.RecordFrame(opener.Number, 1, At.AddHours(1));
+        }
 
         await using (var db = database.CreateContext())
         {
@@ -253,7 +255,7 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
         tournament.MakeDraw(new SeededRandom(1));
         tournament.Start();
         tournament.StartMatch(1, At);
-        tournament.Matches[0].RecordFrame(1);
+        tournament.RecordFrame(1, 1, At);
 
         await using (var db = database.CreateContext())
         {

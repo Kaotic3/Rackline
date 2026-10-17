@@ -63,12 +63,35 @@ public sealed class Bracket
         }
     }
 
+    /// <summary>Records a whole result at once. Not allowed once a match is being scored frame by frame.</summary>
     public void RecordResult(int matchNumber, int score1, int score2, DateTimeOffset at)
     {
         var match = this[matchNumber];
+        Guard.That(match.Frames.Count == 0, $"Match {matchNumber} is being scored frame by frame; record the remaining frames instead.");
         match.Complete(score1, score2, at);
         Advance(match);
     }
+
+    /// <summary>
+    /// Records the next frame of a live match. The frame that takes a player to the target
+    /// completes the match and moves the players on.
+    /// </summary>
+    public Frame RecordFrame(int matchNumber, int winnerSlot, DateTimeOffset at, bool breakAndRun = false, int? points1 = null, int? points2 = null)
+    {
+        var match = this[matchNumber];
+        var frame = match.AddFrame(winnerSlot, breakAndRun, points1, points2);
+
+        if (match.HasReachedTarget)
+        {
+            match.Complete(match.Score1, match.Score2, at);
+            Advance(match);
+        }
+
+        return frame;
+    }
+
+    /// <summary>Takes back the last frame of a live match.</summary>
+    public void UndoLastFrame(int matchNumber) => this[matchNumber].RemoveLastFrame();
 
     public void AwardWalkover(int matchNumber, Guid winnerEntryId, DateTimeOffset at)
     {

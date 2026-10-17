@@ -107,24 +107,47 @@ public sealed class Match : Entity
         TableId = tableId ?? TableId;
     }
 
-    /// <summary>Updates the running score of a live match. Use the bracket to finish it.</summary>
-    public void UpdateScore(int score1, int score2)
-    {
-        Guard.That(State == MatchState.Live, $"Match {Number} is not live.");
-        Guard.That(
-            score1 is >= 0 && score1 < FramesToWin && score2 is >= 0 && score2 < FramesToWin,
-            $"A live score must be between 0 and {FramesToWin - 1} for each player.");
-        Score1 = score1;
-        Score2 = score2;
-    }
-
-    public Frame RecordFrame(int winnerSlot, bool breakAndRun = false, int? points1 = null, int? points2 = null)
+    /// <summary>
+    /// Records the next frame of a live match and adds it to the winner's score. Use the bracket,
+    /// which completes the match when the deciding frame is recorded.
+    /// </summary>
+    internal Frame AddFrame(int winnerSlot, bool breakAndRun, int? points1, int? points2)
     {
         Guard.That(State == MatchState.Live, $"Match {Number} is not live.");
         var frame = new Frame(_frames.Count + 1, winnerSlot, breakAndRun, points1, points2);
         _frames.Add(frame);
+
+        if (winnerSlot == 1)
+        {
+            Score1++;
+        }
+        else
+        {
+            Score2++;
+        }
+
         return frame;
     }
+
+    /// <summary>Takes back the most recent frame of a live match, e.g. after a mis-tap.</summary>
+    internal void RemoveLastFrame()
+    {
+        Guard.That(State == MatchState.Live, "Only a live match can have a frame taken back.");
+        Guard.That(_frames.Count > 0, $"Match {Number} has no frames to take back.");
+
+        var last = _frames[^1];
+        _frames.RemoveAt(_frames.Count - 1);
+        if (last.WinnerSlot == 1)
+        {
+            Score1--;
+        }
+        else
+        {
+            Score2--;
+        }
+    }
+
+    internal bool HasReachedTarget => Math.Max(Score1, Score2) >= FramesToWin;
 
     internal void LinkWinnerTo(int matchNumber, int slot) => WinnerTo = new SlotLink(matchNumber, slot);
 

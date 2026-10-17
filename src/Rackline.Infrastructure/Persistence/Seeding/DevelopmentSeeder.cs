@@ -92,8 +92,11 @@ public static class DevelopmentSeeder
 
         var live = firstRound[2];
         tournament.StartMatch(live.Number, SpringOpenStart.AddMinutes(10), tables[2].Id);
-        live.UpdateScore(4, 5);
-        live.RecordFrame(1, breakAndRun: true);
+        int[] frameWinners = [1, 2, 2, 1, 2, 1, 2, 1, 2];
+        for (var i = 0; i < frameWinners.Length; i++)
+        {
+            tournament.RecordFrame(live.Number, frameWinners[i], SpringOpenStart.AddMinutes(15 + i * 8), breakAndRun: i == 0);
+        }
 
         return tournament;
     }
