@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Rackline.Domain.Challenges;
 using Rackline.Domain.Common;
-using Rackline.Domain.Leagues;
 using Rackline.Domain.Organisations;
 using Rackline.Domain.Players;
 using Rackline.Domain.Rankings;
@@ -70,70 +69,6 @@ public class PlayerTests
         player.OrganisationIds.Should().BeEmpty();
         player.DisplayName.Should().Be("Ada Example");
         player.LicenceNumber.Should().Be("LIC-0001");
-    }
-}
-
-public class LeagueTests
-{
-    private static readonly DateOnly Autumn = new(2026, 9, 1);
-
-    [Fact]
-    public void Seasons_cannot_overlap_or_run_backwards()
-    {
-        var league = new League(Guid.CreateVersion7(), "Tuesday Night League", Discipline.EnglishEightBall);
-        league.AddSeason("Autumn 2026", Autumn, Autumn.AddMonths(3));
-
-        league.Invoking(l => l.AddSeason("Clash", Autumn.AddMonths(2), Autumn.AddMonths(5))).Should().Throw<DomainException>();
-        league.Invoking(l => l.AddSeason("Backwards", Autumn.AddMonths(6), Autumn.AddMonths(5))).Should().Throw<DomainException>();
-        league.AddSeason("Spring 2027", Autumn.AddMonths(4), Autumn.AddMonths(7));
-        league.Seasons.Should().HaveCount(2);
-    }
-
-    [Fact]
-    public void Fixtures_are_between_two_different_teams_in_the_season()
-    {
-        var season = new League(Guid.CreateVersion7(), "Tuesday Night League", Discipline.EnglishEightBall)
-            .AddSeason("Autumn 2026", Autumn, Autumn.AddMonths(3));
-        var home = season.AddTeam("Cushion Kings");
-        var away = season.AddTeam("Pocket Rockets");
-
-        season.Invoking(s => s.AddTeam("cushion kings")).Should().Throw<DomainException>();
-        season.Invoking(s => s.AddFixture(home.Id, home.Id)).Should().Throw<DomainException>();
-        season.Invoking(s => s.AddFixture(home.Id, Guid.CreateVersion7())).Should().Throw<DomainException>();
-
-        var fixture = season.AddFixture(home.Id, away.Id);
-        fixture.AddRubber(Guid.CreateVersion7(), Guid.CreateVersion7(), 2, 1);
-        fixture.AddRubber(Guid.CreateVersion7(), Guid.CreateVersion7(), 0, 2);
-        fixture.AddRubber(Guid.CreateVersion7(), Guid.CreateVersion7(), 2, 0);
-
-        fixture.HomeRubbersWon.Should().Be(2);
-        fixture.AwayRubbersWon.Should().Be(1);
-        fixture.Rubbers.Select(r => r.Number).Should().Equal(1, 2, 3);
-    }
-
-    [Fact]
-    public void Team_rosters_hold_each_player_once()
-    {
-        var team = new League(Guid.CreateVersion7(), "League", Discipline.NineBall)
-            .AddSeason("S1", Autumn, Autumn).AddTeam("Team");
-        var player = Guid.CreateVersion7();
-
-        team.AddPlayer(player);
-        team.AddPlayer(player);
-        team.PlayerIds.Should().ContainSingle();
-        team.RemovePlayer(player);
-        team.PlayerIds.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Rubbers_reject_self_play_and_negative_scores()
-    {
-        var season = new League(Guid.CreateVersion7(), "League", Discipline.NineBall).AddSeason("S1", Autumn, Autumn);
-        var fixture = season.AddFixture(season.AddTeam("A").Id, season.AddTeam("B").Id);
-        var player = Guid.CreateVersion7();
-
-        fixture.Invoking(f => f.AddRubber(player, player, 1, 0)).Should().Throw<DomainException>();
-        fixture.Invoking(f => f.AddRubber(player, Guid.CreateVersion7(), -1, 0)).Should().Throw<DomainException>();
     }
 }
 

@@ -247,14 +247,31 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AwayTeamId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("HomeTeamId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("ScheduledFor")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("SeasonId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
@@ -264,7 +281,9 @@ namespace Rackline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ScheduledFor");
 
-                    b.HasIndex("SeasonId");
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SeasonId", "Round");
 
                     b.ToTable("Fixtures", (string)null);
                 });
@@ -313,9 +332,52 @@ namespace Rackline.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("StartsOn")
                         .HasColumnType("date");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Rules", "Rackline.Domain.Leagues.Season.Rules#SeasonRules", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("PointsForDraw")
+                                .HasColumnType("integer")
+                                .HasColumnName("PointsForDraw");
+
+                            b1.Property<int>("PointsForWin")
+                                .HasColumnType("integer")
+                                .HasColumnName("PointsForWin");
+
+                            b1.Property<int>("PointsPerRubber")
+                                .HasColumnType("integer")
+                                .HasColumnName("PointsPerRubber");
+
+                            b1.Property<int>("RubbersPerFixture")
+                                .HasColumnType("integer")
+                                .HasColumnName("RubbersPerFixture");
+
+                            b1.ComplexProperty(typeof(Dictionary<string, object>), "RubberLength", "Rackline.Domain.Leagues.Season.Rules#SeasonRules.RubberLength#MatchLength", b2 =>
+                                {
+                                    b2.IsRequired();
+
+                                    b2.Property<string>("Kind")
+                                        .IsRequired()
+                                        .HasMaxLength(32)
+                                        .HasColumnType("character varying(32)")
+                                        .HasColumnName("RubberLengthKind");
+
+                                    b2.Property<int>("Value")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("RubberLengthValue");
+                                });
+                        });
+
                     b.HasKey("Id");
 
                     b.HasIndex("LeagueId");
+
+                    b.HasIndex("Status");
 
                     b.ToTable("Seasons", (string)null);
                 });

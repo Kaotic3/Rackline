@@ -67,6 +67,8 @@ public sealed class RacklineDbContext(DbContextOptions<RacklineDbContext> option
         StoreAsString<BracketSide>(configurationBuilder);
         StoreAsString<MatchSlotKind>(configurationBuilder);
         StoreAsString<ChallengeStatus>(configurationBuilder);
+        StoreAsString<SeasonStatus>(configurationBuilder);
+        StoreAsString<FixtureStatus>(configurationBuilder);
     }
 
     private static void StoreAsString<TEnum>(ModelConfigurationBuilder builder)
