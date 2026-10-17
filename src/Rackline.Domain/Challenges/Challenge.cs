@@ -13,6 +13,12 @@ public enum ChallengeStatus
 /// <summary>An ad hoc match between two players, outside any tournament.</summary>
 public sealed class Challenge : Entity
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Challenge()
+    {
+        MatchLength = null!;
+    }
+
     public Challenge(Guid challengerId, Guid opponentId, Discipline discipline, MatchLength matchLength)
     {
         Guard.That(challengerId != opponentId, "A player cannot challenge themselves.");

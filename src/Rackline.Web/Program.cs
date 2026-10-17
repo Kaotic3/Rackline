@@ -1,3 +1,4 @@
+using Rackline.Infrastructure;
 using Rackline.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,7 +7,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+var connectionString = builder.Configuration.GetConnectionString("Rackline")
+    ?? throw new InvalidOperationException("Connection string 'Rackline' is not configured.");
+builder.Services.AddInfrastructure(connectionString);
+
 var app = builder.Build();
+
+if (app.Configuration.GetValue<bool>("Database:MigrateAndSeedOnStartup"))
+{
+    await app.Services.MigrateAndSeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -24,4 +34,4 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-app.Run();
+await app.RunAsync();

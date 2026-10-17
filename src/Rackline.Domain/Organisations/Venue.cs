@@ -6,6 +6,12 @@ public sealed class Venue : Entity
 {
     private readonly List<Table> _tables = [];
 
+    /// <summary>Used by EF Core when loading.</summary>
+    private Venue()
+    {
+        Name = null!;
+    }
+
     public Venue(Guid organisationId, string name, string? address = null)
     {
         OrganisationId = Guard.NotEmpty(organisationId, "Organisation");
@@ -36,6 +42,12 @@ public sealed class Venue : Entity
 
 public sealed class Table : Entity
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Table()
+    {
+        Label = null!;
+    }
+
     internal Table(Guid venueId, string label)
     {
         VenueId = venueId;

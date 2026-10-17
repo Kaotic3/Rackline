@@ -5,6 +5,11 @@ namespace Rackline.Domain.Matches;
 /// <summary>An optional per-frame record within a match.</summary>
 public sealed class Frame
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Frame()
+    {
+    }
+
     internal Frame(int number, int winnerSlot, bool breakAndRun, int? points1, int? points2)
     {
         Guard.That(winnerSlot is 1 or 2, "Frame winner must be slot 1 or 2.");

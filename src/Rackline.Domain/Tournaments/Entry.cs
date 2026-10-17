@@ -5,6 +5,11 @@ namespace Rackline.Domain.Tournaments;
 /// <summary>A player's registration in a tournament.</summary>
 public sealed class Entry : Entity
 {
+    /// <summary>Used by EF Core when loading.</summary>
+    private Entry()
+    {
+    }
+
     internal Entry(Guid tournamentId, Guid playerId, int? seed, int handicap)
     {
         TournamentId = tournamentId;

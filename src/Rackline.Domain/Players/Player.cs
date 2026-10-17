@@ -4,7 +4,15 @@ namespace Rackline.Domain.Players;
 
 public sealed class Player : Entity
 {
-    private readonly HashSet<Guid> _organisationIds = [];
+    private readonly List<Guid> _organisationIds = [];
+
+    /// <summary>Used by EF Core when loading.</summary>
+    private Player()
+    {
+        FirstName = null!;
+        LastName = null!;
+        Nationality = null!;
+    }
 
     public Player(string firstName, string lastName, string nationality, string? licenceNumber = null)
     {
@@ -27,8 +35,13 @@ public sealed class Player : Entity
 
     public IReadOnlyCollection<Guid> OrganisationIds => _organisationIds;
 
-    public void JoinOrganisation(Guid organisationId) =>
-        _organisationIds.Add(Guard.NotEmpty(organisationId, "Organisation"));
+    public void JoinOrganisation(Guid organisationId)
+    {
+        if (!_organisationIds.Contains(Guard.NotEmpty(organisationId, "Organisation")))
+        {
+            _organisationIds.Add(organisationId);
+        }
+    }
 
     public void LeaveOrganisation(Guid organisationId) => _organisationIds.Remove(organisationId);
 

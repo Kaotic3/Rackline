@@ -10,6 +10,11 @@ public sealed class Match : Entity
 {
     private readonly List<Frame> _frames = [];
 
+    /// <summary>Used by EF Core when loading.</summary>
+    private Match()
+    {
+    }
+
     internal Match(Guid tournamentId, int number, BracketSide side, int round, int position, int framesToWin, int? group = null)
     {
         TournamentId = tournamentId;
