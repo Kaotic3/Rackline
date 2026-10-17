@@ -157,6 +157,13 @@ RACKLINE_TEST_CONNECTION="Host=localhost;Port=5432;Database=postgres;Username=ra
 
 On Windows PowerShell: `$env:RACKLINE_TEST_CONNECTION="..."` and then `dotnet test`.
 
+To get a local administrator, set credentials once with user-secrets. They are used at startup in Development:
+
+```
+dotnet user-secrets set "Seed:AdminEmail" "you@example.com" --project src/Rackline.Web
+dotnet user-secrets set "Seed:AdminPassword" "<at least 10 characters>" --project src/Rackline.Web
+```
+
 ## Decisions
 
 _(Append decisions here as they are made.)_
@@ -231,3 +238,57 @@ _(Append decisions here as they are made.)_
   - Each test class gets a throwaway database that is dropped afterwards.
   - `[PostgresFact]` skips when `RACKLINE_TEST_CONNECTION` is not set, and the tests also carry `Category=Integration`.
   - In the cloud sandbox Docker has no running daemon, so the tests were run against Postgres 16 installed with apt.
+
+### M3
+
+- **Packages**
+  - `Microsoft.AspNetCore.Identity.EntityFrameworkCore` 10.0.13 is in Infrastructure.
+  - `Microsoft.AspNetCore.Mvc.Testing` 10.0.13 is in Web.Tests, for `WebApplicationFactory`.
+- **Authentication**
+  - It uses ASP.NET Core Identity's built-in API endpoints under `/api/auth`: register, login, refresh and so on.
+  - Clients use a bearer token, or a cookie with `?useCookies=true`. Tokens last one hour.
+  - Unauthorised `/api` calls get 401/403, never a redirect.
+  - Passwords must be at least 10 characters, and emails must be unique.
+  - `ApplicationUser` is not linked to `Player` yet.
+- **Roles**
+  - Admin, Organiser, Referee and Player have fixed ids and are created by the migration (`HasData`) in every environment.
+  - Self-registered users have no role.
+  - An Admin replaces a user's roles with `PUT /api/users/{id}/roles`. The change takes effect at the user's next sign-in, because roles are carried in the token.
+  - The first Admin comes from `Seed:AdminEmail` and `Seed:AdminPassword` (user-secrets or environment variables) when the app migrates on startup.
+- **Authorisation**
+  - Every `GET` is public.
+  - `ManageTournaments` (Admin or Organiser) covers tournament create, update and delete, entries, seeding, the draw and status changes.
+  - `ScoreMatches` (Admin, Organiser or Referee) covers starting a match, results and walkovers.
+  - `ManageUsers` (Admin only) covers listing users and setting roles.
+  - Any Organiser can manage any tournament until per-organisation permissions arrive in M8.
+- **Endpoints** (all under `/api`)
+  - `tournaments`: `GET` (list, with `?status=`), `GET {id}`, `POST`, `PUT {id}` and `DELETE {id}`.
+    - Status changes: `POST {id}/open-registration`, `/start`, `/complete` and `/cancel`.
+  - Entries: `POST {id}/entries`, `PUT {id}/entries/{entryId}` (seed, handicap) and `DELETE {id}/entries/{entryId}`.
+  - Draw: `POST {id}/draw?randomSeed=` and `DELETE {id}/draw`.
+  - Matches: `POST {id}/matches/{number}/start?tableId=`, `/result` and `/walkover`.
+  - Also: `GET players?search=`, `GET users/me`, `GET users?email=` and `PUT users/{id}/roles`.
+  - Commands that change a tournament return its full detail. Create returns 201 with a `Location` header, and delete returns 204.
+- **The draw**
+  - The response includes the `randomSeed` used. Passing that seed again reproduces the draw exactly.
+  - The seed is not stored.
+- **Validation and errors**
+  - Requests are validated at the boundary with .NET 10's built-in minimal-API validation (DataAnnotations plus `IValidatableObject`), which returns 400 with a validation problem. Enums travel as strings.
+  - Errors use RFC 9457 problem JSON:
+    - unknown resources are 404;
+    - a broken domain rule (`DomainException`) is 409 "Not allowed";
+    - a concurrent edit or a clashing unique index is 409 "Conflicting change".
+  - For `/api`, the HTML "not found" page is switched off.
+- **Concurrency**
+  - `Tournament` and `Match` use Postgres `xmin` as a row version. This needs no schema change.
+  - Two results that feed the same next match cannot both save. The second gets 409 and can be retried.
+  - A filtered unique index on (`TournamentId`, `Seed`) stops two concurrent requests giving out the same seed.
+- **Layering**
+  - Commands live in four small Application classes: `TournamentLifecycle`, `TournamentEntries`, `TournamentDraws` and `MatchResults`.
+  - They work through `ITournamentRepository` and `IReferenceData`.
+  - Reads go through `ITournamentQueries` and `IPlayerQueries`, which use `AsNoTracking` and project with `Select`.
+  - Application services are registered in Web, the composition root, so the Application project needs no DI package.
+  - Time comes from `TimeProvider`, which tests replace with a fixed clock.
+- **Tests**
+  - Application tests use in-memory fakes.
+  - API tests run the real app in a `Testing` environment against a throwaway Postgres database, and sign in through `/api/auth/login`.
