@@ -94,4 +94,7 @@ public interface ITournamentQueries
 
     /// <summary>The tournament a match belongs to, or null if there is no such match.</summary>
     Task<Guid?> FindTournamentIdForMatchAsync(Guid matchId, CancellationToken cancellationToken);
+
+    /// <summary>The match being played on a table now (the latest to start, if somehow more than one), or null.</summary>
+    Task<Guid?> FindLiveMatchOnTableAsync(Guid tableId, CancellationToken cancellationToken);
 }

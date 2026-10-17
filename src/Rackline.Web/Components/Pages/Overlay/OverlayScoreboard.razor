@@ -1,0 +1,27 @@
+@* A compact scoreboard for streams. Scores update in place through live.js; a finished match reloads. *@
+<div class="overlay-board theme-@(Theme == "light" ? "light" : "dark")"
+     data-live-match="@(Match.State is MatchState.Live or MatchState.Ready ? Match.Id.ToString() : null)">
+    <div class="overlay-caption">@Tournament.Name · @MatchText.Round(Tournament, Match) · @MatchText.Length(Tournament.MatchLength)</div>
+    <div data-match="@Match.Id" data-state="@Match.State" data-e1="@Match.Slot1.EntryId" data-e2="@Match.Slot2.EntryId">
+        @foreach (var slot in new[] { 1, 2 })
+        {
+            var side = slot == 1 ? Match.Slot1 : Match.Slot2;
+            <div class="overlay-row @(side.EntryId is not null && side.EntryId == Match.WinnerEntryId ? "winner" : "")">
+                <span class="overlay-name">@MatchText.Player(Tournament, side)</span>
+                <span class="overlay-score @(slot == 1 ? "js-score1" : "js-score2")">@(slot == 1 ? Match.Score1 : Match.Score2)</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TournamentDetailDto Tournament { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public MatchDto Match { get; set; } = null!;
+
+    /// <summary>"dark" (the default: light text on dark panels) or "light".</summary>
+    [Parameter]
+    public string? Theme { get; set; }
+}

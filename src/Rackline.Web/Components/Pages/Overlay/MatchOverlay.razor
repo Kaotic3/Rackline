@@ -1,0 +1,37 @@
+@page "/overlay/matches/{Id:guid}"
+@layout Layout.OverlayLayout
+@inject ITournamentQueries Queries
+@inject NavigationManager Navigation
+
+<PageTitle>Overlay · Rackline</PageTitle>
+
+@if (_tournament is { } t && _match is { } m)
+{
+    <OverlayScoreboard Tournament="t" Match="m" Theme="@Theme" />
+}
+
+@code {
+    private TournamentDetailDto? _tournament;
+    private MatchDto? _match;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Theme { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tournament = await Queries.FindTournamentIdForMatchAsync(Id, CancellationToken.None) is { } tournamentId
+            ? await Queries.GetAsync(tournamentId, CancellationToken.None)
+            : null;
+        var match = tournament?.Matches.SingleOrDefault(m => m.Id == Id);
+        if (tournament is null || match is null || tournament.Status == TournamentStatus.Draft)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        (_tournament, _match) = (tournament, match);
+    }
+}

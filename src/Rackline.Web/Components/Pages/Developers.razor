@@ -54,6 +54,19 @@
     </p>
 </section>
 
+<section>
+    <h2>Streaming overlay</h2>
+    <p>Add a transparent, live scoreboard to a stream as a browser source in OBS or similar software:</p>
+    <ul>
+        <li><code>/overlay/matches/{match id}</code> shows one match.</li>
+        <li>
+            <code>/overlay/tables/{table id}</code> shows whatever is being played on a table, and moves on to the next match by itself,
+            so one browser source per camera is enough. Table ids are in <code>/api/organisations/{id}</code>, under the venues.
+        </li>
+        <li>Add <code>?theme=light</code> for dark text on light panels. The default is light text on dark panels.</li>
+    </ul>
+</section>
+
 @code {
     private static readonly (string Path, string What)[] Endpoints =
     [

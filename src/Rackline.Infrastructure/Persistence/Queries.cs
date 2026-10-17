@@ -75,6 +75,14 @@ internal sealed class TournamentQueries(RacklineDbContext db) : ITournamentQueri
             .Where(m => m.Id == matchId)
             .Select(m => (Guid?)m.TournamentId)
             .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<Guid?> FindLiveMatchOnTableAsync(Guid tableId, CancellationToken cancellationToken) =>
+        await db.Matches
+            .AsNoTracking()
+            .Where(m => m.TableId == tableId && m.State == MatchState.Live)
+            .OrderByDescending(m => m.StartedAt)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 }
 
 internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries

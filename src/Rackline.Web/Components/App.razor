@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en-GB">
+<html lang="en-GB" class="@(IsOverlay ? "overlay" : null)">
 
 <head>
     <meta charset="utf-8" />
@@ -22,3 +22,11 @@
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>Overlay pages are shown over video, so the page itself must be see-through.</summary>
+    private bool IsOverlay => HttpContext?.Request.Path.StartsWithSegments("/overlay") == true;
+}

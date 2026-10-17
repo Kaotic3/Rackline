@@ -173,6 +173,8 @@ public class TournamentApiTests(ApiFactory api) : IClassFixture<ApiFactory>
         public Task<TournamentDetailDto?> GetAsync(Guid id, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         public Task<Guid?> FindTournamentIdForMatchAsync(Guid matchId, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        public Task<Guid?> FindLiveMatchOnTableAsync(Guid tableId, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     [PostgresFact]
