@@ -41,22 +41,18 @@ internal static class OrganisationEndpoints
             Results.Ok(new CreatedResponse(await setup.AddTableAsync(venueId, request.Label, ct))));
 
         // Staff lists include email addresses, so only the organisation's organisers may read them.
-        manage.MapGet("/{id:guid}/staff", async (Guid id, OrganisationAccess access, IOrganisationQueries queries, CancellationToken ct) =>
-        {
-            await access.EnsureAsync(id, StaffRole.Organiser, ct);
-            return await queries.StaffAsync(id, ct);
-        });
+        manage.MapGet("/{id:guid}/staff", (Guid id, StaffAppointments staff, CancellationToken ct) => staff.ListAsync(id, ct));
 
-        manage.MapPut("/{id:guid}/staff", async (Guid id, AppointStaffRequest request, StaffAppointments staff, IOrganisationQueries queries, CancellationToken ct) =>
+        manage.MapPut("/{id:guid}/staff", async (Guid id, AppointStaffRequest request, StaffAppointments staff, CancellationToken ct) =>
         {
             await staff.AppointAsync(id, request.Email, request.Role!.Value, ct);
-            return await queries.StaffAsync(id, ct);
+            return await staff.ListAsync(id, ct);
         });
 
-        manage.MapDelete("/{id:guid}/staff/{userId:guid}", async (Guid id, Guid userId, StaffAppointments staff, IOrganisationQueries queries, CancellationToken ct) =>
+        manage.MapDelete("/{id:guid}/staff/{userId:guid}", async (Guid id, Guid userId, StaffAppointments staff, CancellationToken ct) =>
         {
             await staff.RemoveAsync(id, userId, ct);
-            return await queries.StaffAsync(id, ct);
+            return await staff.ListAsync(id, ct);
         });
 
         manage.MapPut("/{id:guid}/players/{playerId:guid}", async (Guid id, Guid playerId, PlayerRegistry registry, CancellationToken ct) =>

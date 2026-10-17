@@ -16,7 +16,7 @@ using Rackline.Web.Tests.Persistence;
 namespace Rackline.Web.Tests.Api;
 
 /// <summary>The real app, running against a throwaway Postgres database with a fixed clock.</summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed partial class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public const string Password = "Correct-Horse-9";
 
@@ -85,6 +85,26 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         return email;
     }
+
+    /// <summary>A cookie-holding client signed in through the real sign-in form, for page tests.</summary>
+    public async Task<HttpClient> BrowserSignedInAsync(string email)
+    {
+        var browser = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        var form = await browser.GetStringAsync("/account/login");
+        var token = AntiforgeryToken().Match(form).Groups[1].Value;
+        var response = await browser.PostAsync("/account/login?returnUrl=%2F", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["_handler"] = "login",
+            ["__RequestVerificationToken"] = token,
+            ["Input.Email"] = email,
+            ["Input.Password"] = Password,
+        }));
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Redirect);
+        return browser;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("name=\"__RequestVerificationToken\" value=\"([^\"]+)\"")]
+    private static partial System.Text.RegularExpressions.Regex AntiforgeryToken();
 
     public async Task<HttpClient> SignInAsync(string email)
     {

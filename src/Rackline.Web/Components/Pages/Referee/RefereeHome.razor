@@ -1,6 +1,7 @@
 @page "/referee"
 @attribute [Authorize(Policy = Policies.ScoreMatches)]
 @inject ITournamentQueries Queries
+@inject OrganisationAccess Access
 
 <PageTitle>Scoring · Rackline</PageTitle>
 
@@ -12,7 +13,7 @@
 }
 else if (_tournaments.Count == 0)
 {
-    <p class="notice">No tournaments are in progress.</p>
+    <p class="notice">None of the tournaments you can score is in progress.</p>
 }
 else
 {
@@ -33,6 +34,17 @@ else
 @code {
     private IReadOnlyList<TournamentSummaryDto>? _tournaments;
 
-    protected override async Task OnInitializedAsync() =>
-        _tournaments = await Queries.ListAsync(TournamentStatus.InProgress, CancellationToken.None);
+    protected override async Task OnInitializedAsync()
+    {
+        var scorable = new List<TournamentSummaryDto>();
+        foreach (var tournament in await Queries.ListAsync(TournamentStatus.InProgress, CancellationToken.None))
+        {
+            if (await Access.CanAsync(tournament.OrganisationId, StaffRole.Referee, CancellationToken.None))
+            {
+                scorable.Add(tournament);
+            }
+        }
+
+        _tournaments = scorable;
+    }
 }

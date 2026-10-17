@@ -52,6 +52,9 @@ public sealed record SeasonDetailDto(
     IReadOnlyList<TeamDto> Teams,
     IReadOnlyList<FixtureDto> Fixtures)
 {
+    /// <summary>The organisation that runs the league.</summary>
+    public Guid OrganisationId { get; init; }
+
     /// <summary>Players who appear in rubbers but are no longer on any roster.</summary>
     public IReadOnlyList<RosterPlayerDto> FormerPlayers { get; init; } = [];
 

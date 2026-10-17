@@ -27,13 +27,22 @@ public interface IOrganisationDirectory
 /// </summary>
 public sealed class OrganisationAccess(ICurrentUser user, IOrganisationDirectory directory)
 {
+    private readonly Dictionary<Guid, OrganisationLineage> _lineages = [];
     private IReadOnlyList<Appointment>? _appointments;
 
     public bool IsAdmin => user.IsAdmin;
 
     /// <summary>The organisation and everything above it. Throws <see cref="NotFoundException"/> for an unknown organisation.</summary>
-    public async Task<OrganisationLineage> LineageAsync(Guid organisationId, CancellationToken cancellationToken) =>
-        await directory.FindLineageAsync(organisationId, cancellationToken) ?? throw new NotFoundException("Organisation", organisationId);
+    public async Task<OrganisationLineage> LineageAsync(Guid organisationId, CancellationToken cancellationToken)
+    {
+        if (!_lineages.TryGetValue(organisationId, out var lineage))
+        {
+            lineage = await directory.FindLineageAsync(organisationId, cancellationToken) ?? throw new NotFoundException("Organisation", organisationId);
+            _lineages[organisationId] = lineage;
+        }
+
+        return lineage;
+    }
 
     public async Task<bool> CanAsync(Guid organisationId, StaffRole needed, CancellationToken cancellationToken)
     {

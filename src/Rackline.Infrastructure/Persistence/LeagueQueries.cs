@@ -20,6 +20,7 @@ internal sealed class LeagueQueries(RacklineDbContext db) : ILeagueQueries
             {
                 LeagueId = l.Id,
                 LeagueName = l.Name,
+                l.OrganisationId,
                 l.Discipline,
                 Season = new
                 {
@@ -108,6 +109,7 @@ internal sealed class LeagueQueries(RacklineDbContext db) : ILeagueQueries
             [.. row.Fixtures.Select(f => new FixtureDto(f.Id, f.Round, f.HomeTeamId, f.AwayTeamId, f.ScheduledFor, f.Status, f.CompletedAt, f.Rubbers))])
         {
             FormerPlayers = former,
+            OrganisationId = row.OrganisationId,
         };
     }
 

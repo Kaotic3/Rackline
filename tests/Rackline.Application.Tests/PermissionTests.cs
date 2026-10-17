@@ -206,7 +206,7 @@ public class PermissionTests
         Appoint(_north, StaffRole.Organiser);
         var colleague = Guid.CreateVersion7();
         _users.ByEmail["colleague@example.test"] = colleague;
-        var staff = new StaffAppointments(_organisations, _users, Access);
+        var staff = new StaffAppointments(_organisations, _users, new FakeOrganisationQueries(), Access);
 
         await staff.AppointAsync(_northClub.Id, "Colleague@Example.test", StaffRole.Referee);
         await staff.AppointAsync(_northClub.Id, "colleague@example.test", StaffRole.Organiser);
@@ -215,6 +215,9 @@ public class PermissionTests
 
         await FluentActions.Awaiting(() => staff.AppointAsync(_southClub.Id, "colleague@example.test", StaffRole.Referee)).Should().ThrowAsync<ForbiddenException>();
         await FluentActions.Awaiting(() => staff.AppointAsync(_northClub.Id, "nobody@example.test", StaffRole.Referee)).Should().ThrowAsync<NotFoundException>();
+
+        await staff.ListAsync(_northClub.Id);
+        await FluentActions.Awaiting(() => staff.ListAsync(_south.Id)).Should().ThrowAsync<ForbiddenException>("staff lists hold email addresses");
 
         await staff.RemoveAsync(_northClub.Id, colleague);
         _organisations.Appointments.Should().BeEmpty();

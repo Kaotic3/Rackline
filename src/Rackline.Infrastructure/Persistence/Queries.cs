@@ -62,7 +62,10 @@ internal sealed class TournamentQueries(RacklineDbContext db) : ITournamentQueri
                         m.Frames.Count(f => f.BreakAndRun && f.WinnerSlot == 2)))
                     .ToList(),
                 t.RankingId,
-                db.Rankings.Where(r => r.Id == t.RankingId).Select(r => r.Name).FirstOrDefault()))
+                db.Rankings.Where(r => r.Id == t.RankingId).Select(r => r.Name).FirstOrDefault())
+            {
+                OrganisationName = db.Organisations.Where(o => o.Id == t.OrganisationId).Select(o => o.Name).FirstOrDefault(),
+            })
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -105,12 +108,15 @@ internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries
         }
 
         var organisationIds = player.OrganisationIds.ToList();
-        var organisations = await db.Organisations
-            .AsNoTracking()
-            .Where(o => organisationIds.Contains(o.Id))
-            .OrderBy(o => o.Level).ThenBy(o => o.Name)
+        // Levels are stored as text, so sort them in memory to keep the hierarchy's order.
+        var organisations = (await db.Organisations
+                .AsNoTracking()
+                .Where(o => organisationIds.Contains(o.Id))
+                .Select(o => new { o.Level, o.Name })
+                .ToListAsync(cancellationToken))
+            .OrderBy(o => o.Level).ThenBy(o => o.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(o => o.Name)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var ratings = await db.Ratings
             .AsNoTracking()

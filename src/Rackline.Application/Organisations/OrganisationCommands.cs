@@ -97,8 +97,19 @@ public sealed class OrganisationSetup(IOrganisationRepository organisations, Org
 /// Appointing organisers and referees. An organiser can appoint staff at their organisation or any
 /// below it, including other organisers: they can share their rights but never gain more.
 /// </summary>
-public sealed class StaffAppointments(IOrganisationRepository organisations, IUserDirectory users, OrganisationAccess access)
+public sealed class StaffAppointments(
+    IOrganisationRepository organisations,
+    IUserDirectory users,
+    IOrganisationQueries queries,
+    OrganisationAccess access)
 {
+    /// <summary>Staff appointed at the organisation. The list holds email addresses, so only its organisers may read it.</summary>
+    public async Task<IReadOnlyList<StaffDto>> ListAsync(Guid organisationId, CancellationToken cancellationToken = default)
+    {
+        await access.EnsureAsync(organisationId, StaffRole.Organiser, cancellationToken);
+        return await queries.StaffAsync(organisationId, cancellationToken);
+    }
+
     /// <summary>Appoints the user with that email, or changes their role if they already have one here.</summary>
     public async Task<Guid> AppointAsync(Guid organisationId, string email, StaffRole role, CancellationToken cancellationToken = default)
     {

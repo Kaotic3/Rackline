@@ -6,12 +6,15 @@ namespace Rackline.Infrastructure.Persistence;
 
 internal sealed class OrganisationQueries(RacklineDbContext db) : IOrganisationQueries
 {
+    // Levels are stored as text, so the database would sort them alphabetically; sort in memory instead.
     public async Task<IReadOnlyList<OrganisationSummaryDto>> ListAsync(CancellationToken cancellationToken) =>
-        await db.Organisations
-            .AsNoTracking()
-            .OrderBy(o => o.Level).ThenBy(o => o.Name)
-            .Select(o => new OrganisationSummaryDto(o.Id, o.Name, o.Level, o.ParentId))
-            .ToListAsync(cancellationToken);
+        [
+            .. (await db.Organisations
+                .AsNoTracking()
+                .Select(o => new OrganisationSummaryDto(o.Id, o.Name, o.Level, o.ParentId))
+                .ToListAsync(cancellationToken))
+                .OrderBy(o => o.Level).ThenBy(o => o.Name, StringComparer.CurrentCultureIgnoreCase),
+        ];
 
     public async Task<OrganisationDetailDto?> GetAsync(Guid organisationId, CancellationToken cancellationToken)
     {
@@ -82,11 +85,12 @@ internal sealed class OrganisationQueries(RacklineDbContext db) : IOrganisationQ
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<MyAppointmentDto>> AppointmentsOfAsync(Guid userId, CancellationToken cancellationToken) =>
-        await db.Appointments
-            .AsNoTracking()
-            .Where(a => a.UserId == userId)
-            .Join(db.Organisations, a => a.OrganisationId, o => o.Id, (a, o) => new { a.Role, o.Id, o.Name, o.Level })
-            .OrderBy(x => x.Level).ThenBy(x => x.Name)
-            .Select(x => new MyAppointmentDto(x.Id, x.Name, x.Level, x.Role))
-            .ToListAsync(cancellationToken);
+        [
+            .. (await db.Appointments
+                .AsNoTracking()
+                .Where(a => a.UserId == userId)
+                .Join(db.Organisations, a => a.OrganisationId, o => o.Id, (a, o) => new MyAppointmentDto(o.Id, o.Name, o.Level, a.Role))
+                .ToListAsync(cancellationToken))
+                .OrderBy(x => x.Level).ThenBy(x => x.OrganisationName, StringComparer.CurrentCultureIgnoreCase),
+        ];
 }

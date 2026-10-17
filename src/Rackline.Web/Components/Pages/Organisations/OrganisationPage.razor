@@ -1,0 +1,124 @@
+@page "/organisations/{Id:guid}"
+@inject IOrganisationQueries Queries
+@inject OrganisationAccess Access
+@inject NavigationManager Navigation
+
+@if (_organisation is { } o)
+{
+    <PageTitle>@o.Name · Rackline</PageTitle>
+    <HeadContent><meta name="description" content="@($"{o.Name}: events, leagues, rankings and venues.")" /></HeadContent>
+
+    <p>
+        @if (o.Parent is { } parent)
+        {
+            <a href="/organisations/@parent.Id">← @parent.Name</a>
+        }
+        else
+        {
+            <a href="/organisations">← Organisations</a>
+        }
+    </p>
+    <h1>@o.Name</h1>
+    <p class="muted">@Labels.Of(o.Level) · @Labels.Count(o.MemberCount, "member")</p>
+
+    @if (_canManage)
+    {
+        <p><a class="button secondary" href="/organiser/organisations/@o.Id/staff">Staff</a></p>
+    }
+
+    @if (o.Children.Count > 0)
+    {
+        <section>
+            <h2>@(o.Level == OrganisationLevel.Regional ? "Clubs" : "Organisations below")</h2>
+            <ul class="cards">
+                @foreach (var child in o.Children)
+                {
+                    <li><a href="/organisations/@child.Id"><strong>@child.Name</strong><span class="muted">@Labels.Of(child.Level)</span></a></li>
+                }
+            </ul>
+        </section>
+    }
+
+    <section>
+        <h2>Tournaments</h2>
+        @if (o.Tournaments.Count == 0)
+        {
+            <p class="muted">No tournaments yet.</p>
+        }
+        else
+        {
+            <ul class="cards">
+                @foreach (var t in o.Tournaments)
+                {
+                    <li><a href="/tournaments/@t.Id"><strong>@t.Name</strong><span class="muted">@Labels.Of(t.Discipline) · @Labels.Of(t.Status)</span></a></li>
+                }
+            </ul>
+        }
+    </section>
+
+    @if (o.Leagues.Count > 0 || o.Rankings.Count > 0)
+    {
+        <section class="row">
+            @if (o.Leagues.Count > 0)
+            {
+                <div class="grow">
+                    <h2>Leagues</h2>
+                    <ul>
+                        @foreach (var league in o.Leagues)
+                        {
+                            <li><a href="/leagues/@league.Id">@league.Name</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+            @if (o.Rankings.Count > 0)
+            {
+                <div class="grow">
+                    <h2>Rankings</h2>
+                    <ul>
+                        @foreach (var ranking in o.Rankings)
+                        {
+                            <li><a href="/rankings/@ranking.Id">@ranking.Name</a></li>
+                        }
+                    </ul>
+                </div>
+            }
+        </section>
+    }
+
+    @if (o.Venues.Count > 0)
+    {
+        <section>
+            <h2>Venues</h2>
+            <ul class="cards">
+                @foreach (var venue in o.Venues)
+                {
+                    <li class="venue">
+                        <strong>@venue.Name</strong>
+                        <span class="muted">@(venue.Address is null ? "" : $"{venue.Address} · ")@Labels.Count(venue.Tables.Count, "table")</span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+}
+
+@code {
+    private OrganisationDetailDto? _organisation;
+    private bool _canManage;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _organisation = await Queries.GetAsync(Id, CancellationToken.None);
+        if (_organisation is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _canManage = await Access.CanAsync(Id, StaffRole.Organiser, CancellationToken.None);
+    }
+}

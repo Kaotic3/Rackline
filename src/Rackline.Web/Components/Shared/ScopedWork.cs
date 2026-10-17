@@ -23,6 +23,15 @@ public static class ScopedWork
         await work(scope.ServiceProvider.GetRequiredService<TService>());
     }
 
+    /// <inheritdoc cref="RunAsAsync{TService}"/>
+    public static async Task<TResult> RunAsAsync<TService, TResult>(this IServiceScopeFactory scopes, ClaimsPrincipal user, Func<TService, Task<TResult>> work)
+        where TService : notnull
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<CurrentUser>().Principal = user;
+        return await work(scope.ServiceProvider.GetRequiredService<TService>());
+    }
+
     /// <summary>
     /// Runs a command as the page's signed-in user. Interactive pages have no HTTP request for the
     /// command's permission checks to read the user from, so it is handed over here.

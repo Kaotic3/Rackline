@@ -11,7 +11,7 @@
         <p><a href="/tournaments">← Tournaments</a></p>
         <h1>@t.Name</h1>
         <p class="muted">
-            @Labels.Of(t.Discipline) · @Labels.Of(t.Format) · @MatchText.Length(t.MatchLength) · <strong>@Labels.Of(t.Status)</strong>
+            <a href="/organisations/@t.OrganisationId">@t.OrganisationName</a> · @Labels.Of(t.Discipline) · @Labels.Of(t.Format) · @MatchText.Length(t.MatchLength) · <strong>@Labels.Of(t.Status)</strong>
             @if (t.RankingId is { } rankingId)
             {
                 <span> · Counts towards <a href="/rankings/@rankingId">@t.RankingName</a></span>

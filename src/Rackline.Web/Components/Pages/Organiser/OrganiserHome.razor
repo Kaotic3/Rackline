@@ -1,0 +1,53 @@
+@page "/organiser"
+@attribute [Authorize]
+@using System.Security.Claims
+@using Rackline.Web.Security
+@inject IOrganisationQueries Queries
+@inject OrganisationAccess Access
+
+<PageTitle>Your organisations · Rackline</PageTitle>
+
+<h1>Your organisations</h1>
+
+@if (Access.IsAdmin)
+{
+    <p class="notice">As an administrator you can manage every organisation. <a href="/organisations">Browse them all</a>.</p>
+}
+
+@if (_appointments.Count == 0)
+{
+    @if (!Access.IsAdmin)
+    {
+        <p class="notice">You have not been appointed at any organisation yet. An organiser of a club, region or national body can appoint you.</p>
+    }
+}
+else
+{
+    <p>An appointment also covers every organisation below it.</p>
+    <ul class="cards">
+        @foreach (var appointment in _appointments)
+        {
+            <li>
+                <a href="/organisations/@appointment.OrganisationId">
+                    <strong>@appointment.OrganisationName</strong>
+                    <span class="muted">@Labels.Of(appointment.Level) · @Labels.Of(appointment.Role)</span>
+                </a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<MyAppointmentDto> _appointments = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if ((await AuthenticationState).User.UserId() is { } userId)
+        {
+            _appointments = await Queries.AppointmentsOfAsync(userId, CancellationToken.None);
+        }
+    }
+}

@@ -1,6 +1,7 @@
 @page "/seasons/{SeasonId:guid}/fixtures/{Id:guid}"
 @inject ILeagueQueries Queries
 @inject NavigationManager Navigation
+@inject OrganisationAccess Access
 
 @if (_season is { } s && _fixture is { } f)
 {
@@ -48,17 +49,16 @@
         <p class="notice">This fixture has not been played yet.</p>
     }
 
-    <AuthorizeView Policy="@Policies.ManageLeagues">
-        @if (s.Status == SeasonStatus.Scheduled)
-        {
-            <p><a class="button" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct the result" : "Enter the result")</a></p>
-        }
-    </AuthorizeView>
+    @if (_canManage && s.Status == SeasonStatus.Scheduled)
+    {
+        <p><a class="button" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct the result" : "Enter the result")</a></p>
+    }
 }
 
 @code {
     private SeasonDetailDto? _season;
     private FixtureDto? _fixture;
+    private bool _canManage;
 
     [Parameter]
     public Guid SeasonId { get; set; }
@@ -74,6 +74,9 @@
         {
             _season = null;
             Navigation.NotFound();
+            return;
         }
+
+        _canManage = await Access.CanAsync(_season!.OrganisationId, StaffRole.Organiser, CancellationToken.None);
     }
 }

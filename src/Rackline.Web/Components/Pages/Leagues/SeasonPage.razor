@@ -1,6 +1,7 @@
 @page "/seasons/{Id:guid}"
 @inject ILeagueQueries Queries
 @inject NavigationManager Navigation
+@inject OrganisationAccess Access
 
 @if (_season is { } s)
 {
@@ -73,12 +74,10 @@
                             <span class="team away @(f.Status == FixtureStatus.Completed && f.AwayRubbersWon > f.HomeRubbersWon ? "winner" : "")">@s.TeamName(f.AwayTeamId)</span>
                         </a>
                         <span class="muted fixture-when">@(f.Status == FixtureStatus.Postponed ? "Postponed" : Labels.When(f.ScheduledFor))</span>
-                        <AuthorizeView Policy="@Policies.ManageLeagues">
-                            @if (s.Status == SeasonStatus.Scheduled)
-                            {
-                                <a class="fixture-admin" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct result" : "Enter result")</a>
-                            }
-                        </AuthorizeView>
+                        @if (_canManage && s.Status == SeasonStatus.Scheduled)
+                        {
+                            <a class="fixture-admin" href="/organiser/seasons/@s.Id/fixtures/@f.Id">@(f.Status == FixtureStatus.Completed ? "Correct result" : "Enter result")</a>
+                        }
                     </li>
                 }
             </ul>
@@ -111,6 +110,7 @@
 @code {
     private SeasonDetailDto? _season;
     private IReadOnlyList<LeagueTableRowDto> _table = [];
+    private bool _canManage;
 
     [Parameter]
     public Guid Id { get; set; }
@@ -125,5 +125,6 @@
         }
 
         _table = SeasonTable.For(_season);
+        _canManage = await Access.CanAsync(_season.OrganisationId, StaffRole.Organiser, CancellationToken.None);
     }
 }

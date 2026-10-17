@@ -245,3 +245,14 @@ internal sealed class FakeUsers : IUserDirectory
     public Task<Guid?> FindIdByEmailAsync(string email, CancellationToken cancellationToken) =>
         Task.FromResult<Guid?>(ByEmail.TryGetValue(email, out var id) ? id : null);
 }
+
+internal sealed class FakeOrganisationQueries : IOrganisationQueries
+{
+    public Task<IReadOnlyList<OrganisationSummaryDto>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<OrganisationSummaryDto>>([]);
+
+    public Task<OrganisationDetailDto?> GetAsync(Guid organisationId, CancellationToken cancellationToken) => Task.FromResult<OrganisationDetailDto?>(null);
+
+    public Task<IReadOnlyList<StaffDto>> StaffAsync(Guid organisationId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<StaffDto>>([]);
+
+    public Task<IReadOnlyList<MyAppointmentDto>> AppointmentsOfAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<MyAppointmentDto>>([]);
+}
