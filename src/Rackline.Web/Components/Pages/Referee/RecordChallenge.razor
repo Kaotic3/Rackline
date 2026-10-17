@@ -1,0 +1,217 @@
+@page "/referee/challenges/new"
+@attribute [Authorize(Policy = Policies.ScoreMatches)]
+@rendermode InteractiveServer
+@using Rackline.Domain.Challenges
+@using Rackline.Web.Security
+@inject IServiceScopeFactory Scopes
+@inject NavigationManager Navigation
+
+<PageTitle>Record a challenge · Rackline</PageTitle>
+
+<p><a href="/referee">← Scoring</a></p>
+<h1>Record a challenge</h1>
+<p class="muted">
+    Record a one-off match once it has been played. Both players must belong to the organisation you record it for, or to one below it.
+</p>
+
+@if (!_loaded)
+{
+    <p>Loading…</p>
+}
+else if (_organisations.Count == 0)
+{
+    <p class="notice">You are not a referee or organiser anywhere, so you cannot record challenges.</p>
+}
+else
+{
+    @if (_error is not null)
+    {
+        <p class="alert" role="alert">@_error</p>
+    }
+
+    <form class="stack" @onsubmit="SaveAsync">
+        <label>
+            Organisation
+            <select value="@_organisationId" @onchange="OrganisationChangedAsync" disabled="@_busy">
+                @foreach (var organisation in _organisations)
+                {
+                    <option value="@organisation.Id">@organisation.Name</option>
+                }
+            </select>
+        </label>
+
+        <div class="row">
+            <label class="grow">
+                Discipline
+                <select value="@_discipline" @onchange="DisciplineChangedAsync" disabled="@_busy">
+                    @foreach (var discipline in Enum.GetValues<Discipline>())
+                    {
+                        <option value="@discipline">@Labels.Of(discipline)</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Race to
+                <input type="number" min="1" max="99" @bind="_raceTo" disabled="@_busy" />
+            </label>
+        </div>
+
+        @foreach (var side in new[] { 1, 2 })
+        {
+            var current = side;
+            <div class="row">
+                <label class="grow">
+                    Player @current
+                    <select value="@(current == 1 ? _player1 : _player2)" @onchange="e => PlayerChangedAsync(current, e)" disabled="@_busy">
+                        <option value="">Choose a player</option>
+                        @foreach (var player in _players)
+                        {
+                            <option value="@player.Id">@player.DisplayName</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Frames
+                    @if (current == 1)
+                    {
+                        <input type="number" min="0" max="99" @bind="_score1" disabled="@_busy" />
+                    }
+                    else
+                    {
+                        <input type="number" min="0" max="99" @bind="_score2" disabled="@_busy" />
+                    }
+                </label>
+            </div>
+        }
+
+        @if (_preview is { } preview)
+        {
+            <p class="notice" role="status">
+                @if (preview.Counts)
+                {
+                    <span>This challenge will count towards both players' ratings.</span>
+                }
+                else
+                {
+                    <span>This challenge will be recorded but will not count towards ratings. @string.Join(" ", preview.Reasons)</span>
+                }
+            </p>
+        }
+
+        <button class="button big" type="submit" disabled="@(_busy || _player1 is null || _player2 is null)">Save the result</button>
+    </form>
+}
+
+@code {
+    private IReadOnlyList<OrganisationSummaryDto> _all = [];
+    private IReadOnlyList<OrganisationSummaryDto> _organisations = [];
+    private IReadOnlyList<PlayerSummaryDto> _players = [];
+    private Guid _organisationId;
+    private Discipline _discipline = Discipline.NineBall;
+    private int _raceTo = 5;
+    private Guid? _player1;
+    private Guid? _player2;
+    private int _score1;
+    private int _score2;
+    private ChallengeAssessment? _preview;
+    private bool _loaded;
+    private bool _busy;
+    private string? _error;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationState).User;
+        _all = await Scopes.RunAsync<IOrganisationQueries, IReadOnlyList<OrganisationSummaryDto>>(q => q.ListAsync(CancellationToken.None));
+
+        // Where the user can record: everywhere for an admin; otherwise their appointments and everything below them.
+        if (user.IsInRole(Roles.Admin))
+        {
+            _organisations = _all;
+        }
+        else if (user.UserId() is { } userId)
+        {
+            var appointed = await Scopes.RunAsync<IOrganisationQueries, IReadOnlyList<MyAppointmentDto>>(q => q.AppointmentsOfAsync(userId, CancellationToken.None));
+            var reachable = appointed.SelectMany(a => WithDescendants(a.OrganisationId)).ToHashSet();
+            _organisations = [.. _all.Where(o => reachable.Contains(o.Id))];
+        }
+
+        if (_organisations.Count > 0)
+        {
+            _organisationId = _organisations[0].Id;
+            await LoadPlayersAsync();
+        }
+
+        _loaded = true;
+    }
+
+    private IEnumerable<Guid> WithDescendants(Guid organisationId) =>
+        _all.Where(o => o.ParentId == organisationId).SelectMany(o => WithDescendants(o.Id)).Prepend(organisationId);
+
+    private async Task LoadPlayersAsync()
+    {
+        var organisations = WithDescendants(_organisationId).ToList();
+        _players = await Scopes.RunAsync<IPlayerQueries, IReadOnlyList<PlayerSummaryDto>>(q => q.MembersOfAsync(organisations, CancellationToken.None));
+        _player1 = _player1 is { } one && _players.Any(p => p.Id == one) ? one : null;
+        _player2 = _player2 is { } two && _players.Any(p => p.Id == two) ? two : null;
+        await PreviewAsync();
+    }
+
+    private async Task OrganisationChangedAsync(ChangeEventArgs e)
+    {
+        _organisationId = Guid.Parse((string)e.Value!);
+        await LoadPlayersAsync();
+    }
+
+    private async Task DisciplineChangedAsync(ChangeEventArgs e)
+    {
+        _discipline = Enum.Parse<Discipline>((string)e.Value!);
+        await PreviewAsync();
+    }
+
+    private async Task PlayerChangedAsync(int side, ChangeEventArgs e)
+    {
+        Guid? chosen = Guid.TryParse(e.Value as string, out var id) ? id : null;
+        if (side == 1)
+        {
+            _player1 = chosen;
+        }
+        else
+        {
+            _player2 = chosen;
+        }
+
+        await PreviewAsync();
+    }
+
+    /// <summary>Shows whether the challenge would count before anyone saves it.</summary>
+    private async Task PreviewAsync()
+    {
+        _preview = _player1 is { } one && _player2 is { } two && one != two
+            ? await Scopes.RunAsync<ChallengeRecording, ChallengeAssessment>(r => r.PreviewAsync(one, two, _discipline, CancellationToken.None))
+            : null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var user = (await AuthenticationState).User;
+            var id = await Scopes.RunAsAsync<ChallengeRecording, Guid>(user, r =>
+                r.RecordAsync(_organisationId, _player1!.Value, _player2!.Value, _discipline, MatchLengthKind.RaceTo, _raceTo, _score1, _score2, CancellationToken.None));
+            Navigation.NavigateTo($"/challenges/{id}");
+        }
+        catch (Exception ex) when (ex is DomainException or ConflictException or NotFoundException or ForbiddenException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

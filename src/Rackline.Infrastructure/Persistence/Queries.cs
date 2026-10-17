@@ -128,7 +128,51 @@ internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries
         return new PlayerProfileDto(player.Id, player.FirstName, player.LastName, player.Nationality, player.LicenceNumber, organisations, ratings);
     }
 
-    public async Task<IReadOnlyList<PlayedMatchDto>> GetPlayedMatchesAsync(Guid playerId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<PlayedMatchDto>> GetPlayedMatchesAsync(Guid playerId, CancellationToken cancellationToken) =>
+    [
+        .. (await TournamentMatchesAsync(playerId, cancellationToken))
+            .Concat(await ChallengesAsync(playerId, cancellationToken))
+            .OrderByDescending(m => m.PlayedAt),
+    ];
+
+    public async Task<IReadOnlyList<PlayerSummaryDto>> MembersOfAsync(IReadOnlyCollection<Guid> organisationIds, CancellationToken cancellationToken)
+    {
+        var ids = organisationIds.ToList();
+        return await db.Players
+            .AsNoTracking()
+            .Where(p => p.OrganisationIds.Any(id => ids.Contains(id)))
+            .OrderBy(p => p.LastName).ThenBy(p => p.FirstName)
+            .Select(p => new PlayerSummaryDto(p.Id, p.FirstName, p.LastName, p.Nationality, p.LicenceNumber))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>The player's challenges, from their side, with opponents' names in the same query.</summary>
+    private async Task<IEnumerable<PlayedMatchDto>> ChallengesAsync(Guid playerId, CancellationToken cancellationToken) =>
+        (await db.Challenges
+            .AsNoTracking()
+            .Where(c => c.Player1Id == playerId || c.Player2Id == playerId)
+            .Select(c => new
+            {
+                c.Id,
+                c.Discipline,
+                c.PlayedAt,
+                IsPlayer1 = c.Player1Id == playerId,
+                OpponentId = c.Player1Id == playerId ? c.Player2Id : c.Player1Id,
+                c.Score1,
+                c.Score2,
+            })
+            .Join(db.Players, c => c.OpponentId, p => p.Id, (c, p) => new { Challenge = c, Name = p.FirstName + " " + p.LastName })
+            .ToListAsync(cancellationToken))
+        .Select(x =>
+        {
+            var c = x.Challenge;
+            var (mine, theirs) = c.IsPlayer1 ? (c.Score1, c.Score2) : (c.Score2, c.Score1);
+            return new PlayedMatchDto(
+                c.Id, null, null, c.Discipline, c.PlayedAt, c.OpponentId, x.Name,
+                Won: mine > theirs, Walkover: false, FramesFor: mine, FramesAgainst: theirs, BreakAndRunsFor: 0, BreakAndRunsAgainst: 0);
+        });
+
+    private async Task<IEnumerable<PlayedMatchDto>> TournamentMatchesAsync(Guid playerId, CancellationToken cancellationToken)
     {
         // 1. The player's entries, with their tournaments.
         var entries = await db.Tournaments
@@ -197,8 +241,7 @@ internal sealed class PlayerQueries(RacklineDbContext db) : IPlayerQueries
                         FramesAgainst: walkover ? 0 : isSlot1 ? m.Score2 : m.Score1,
                         BreakAndRunsFor: isSlot1 ? m.BreakAndRuns1 : m.BreakAndRuns2,
                         BreakAndRunsAgainst: isSlot1 ? m.BreakAndRuns2 : m.BreakAndRuns1);
-                })
-                .OrderByDescending(m => m.PlayedAt),
+                }),
         ];
     }
 }

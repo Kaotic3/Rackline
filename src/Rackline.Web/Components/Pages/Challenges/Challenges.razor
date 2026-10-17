@@ -1,0 +1,35 @@
+@page "/challenges"
+@using Rackline.Domain.Challenges
+@inject IChallengeQueries Queries
+
+<PageTitle>Challenges · Rackline</PageTitle>
+<HeadContent><meta name="description" content="One-off matches between players, recorded by referees, and whether they counted towards ratings." /></HeadContent>
+
+<h1>Challenges</h1>
+
+<p>
+    A challenge is a one-off match outside any tournament, recorded by a referee or organiser of a club both players belong to.
+    To keep ratings fair, a challenge counts towards them only when:
+</p>
+<ul>
+    <li>both players have a settled rating (at least @Elo.ProvisionalMatches rated matches);</li>
+    <li>their ratings are within @ChallengeRules.MaxRatingGap.ToString("0") points of each other; and</li>
+    <li>they have not had a rated challenge in the same discipline within @ChallengeRules.RepeatWindow.Days days.</li>
+</ul>
+<p class="muted">Every challenge still appears in the players' records, with the reason when it did not count.</p>
+
+@if (_challenges.Count == 0)
+{
+    <p class="notice">No challenges have been recorded yet.</p>
+}
+else
+{
+    <h2>Recent challenges</h2>
+    <ChallengeList Challenges="_challenges" />
+}
+
+@code {
+    private IReadOnlyList<ChallengeDto> _challenges = [];
+
+    protected override async Task OnInitializedAsync() => _challenges = await Queries.ListAsync(null, 50, CancellationToken.None);
+}

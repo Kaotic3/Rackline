@@ -123,6 +123,53 @@ public class ChallengeApiTests(ApiFactory api) : IClassFixture<ApiFactory>
         (await db.RatingChanges.AnyAsync(c => c.MatchId == recorded.Id)).Should().BeFalse("removing a rated challenge rebuilds every rating without it");
     }
 
+    [PostgresFact]
+    public async Task Challenges_have_public_pages_and_appear_in_records_and_head_to_heads()
+    {
+        var (club, ann, ben) = await ClubWithSettledPlayersAsync();
+        var (_, _, newcomers) = await api.AddReferenceDataAsync(1);
+        await using (var db = api.CreateDbContext())
+        {
+            (await db.Players.SingleAsync(p => p.Id == newcomers[0])).JoinOrganisation(club);
+            await db.SaveChangesAsync();
+        }
+
+        var referee = await api.ClientForAsync(StaffRole.Referee, club);
+        var rated = await ReadAsync<ChallengeDto>(await referee.PostAsJsonAsync("/api/challenges", Challenge(club, ann, ben, 5, 2)), HttpStatusCode.Created);
+        var unrated = await ReadAsync<ChallengeDto>(await referee.PostAsJsonAsync("/api/challenges", Challenge(club, newcomers[0], ann, 5, 4)), HttpStatusCode.Created);
+        var visitor = api.CreateClient();
+
+        async Task<string> PageAsync(string path)
+        {
+            var response = await visitor.GetAsync(path);
+            response.StatusCode.Should().Be(HttpStatusCode.OK, path);
+            var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+            html.Should().NotContain("\"type\":\"server\"", "public pages are static");
+            return html;
+        }
+
+        (await PageAsync("/challenges")).Should().Contain($"/challenges/{rated.Id}").And.Contain("within 200 points").And.Contain("Not rated");
+        (await PageAsync($"/challenges/{rated.Id}")).Should().Contain("counted towards both players' ratings").And.Contain("Rating +");
+        (await PageAsync($"/challenges/{unrated.Id}")).Should().Contain("did not count towards ratings").And.Contain("settled rating");
+
+        var profile = await PageAsync($"/players/{ann}");
+        profile.Should().Contain($"/challenges/{rated.Id}").And.Contain("Won 5–2").And.Contain("Lost 4–5").And.Contain(", challenge");
+        (await PageAsync($"/head-to-head?a={ann}&b={ben}")).Should().Contain("Won 5–2");
+        (await visitor.GetAsync($"/challenges/{Guid.NewGuid()}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [PostgresFact]
+    public async Task The_recording_screen_is_for_staff()
+    {
+        var (club, _, _) = await ClubWithSettledPlayersAsync();
+        var browser = api.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        (await browser.GetAsync("/referee/challenges/new")).StatusCode.Should().Be(HttpStatusCode.Redirect);
+
+        var referee = await api.BrowserSignedInAsync(await api.CreateUserAsync(StaffRole.Referee, club));
+        (await referee.GetStringAsync("/referee")).Should().Contain("/referee/challenges/new");
+        (await referee.GetAsync("/referee/challenges/new")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private sealed record HistoryItem(Guid MatchId, Guid? TournamentId);
 
     private sealed record RatingsResponse(List<HistoryItem> History);
