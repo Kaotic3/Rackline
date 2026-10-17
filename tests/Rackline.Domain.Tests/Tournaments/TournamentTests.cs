@@ -272,4 +272,44 @@ public class TournamentTests
 
         tournament.Invoking(t => t.Cancel()).Should().Throw<DomainException>();
     }
+
+    [Fact]
+    public void Can_be_reconfigured_only_before_the_draw()
+    {
+        var tournament = WithEntries(4);
+
+        tournament.Reconfigure(Discipline.Snooker, TournamentFormat.RoundRobin, MatchLength.BestOf(5), new FormatOptions(GroupCount: 2));
+
+        tournament.Should().BeEquivalentTo(new
+        {
+            Discipline = Discipline.Snooker,
+            Format = TournamentFormat.RoundRobin,
+            MatchLength = MatchLength.BestOf(5),
+            Options = new FormatOptions(GroupCount: 2),
+        }, o => o.ExcludingMissingMembers());
+
+        tournament.Reconfigure(Discipline.NineBall, TournamentFormat.SingleElimination, MatchLength.RaceTo(7));
+        tournament.Options.Should().Be(FormatOptions.Default);
+
+        tournament.MakeDraw(new SeededRandom(1));
+        tournament.Invoking(t => t.Reconfigure(Discipline.NineBall, TournamentFormat.RoundRobin, RaceTo5))
+            .Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Can_be_deleted_only_when_no_draw_is_in_play()
+    {
+        var tournament = WithEntries(2);
+        tournament.CanBeDeleted.Should().BeTrue();
+
+        tournament.MakeDraw(new SeededRandom(1));
+        tournament.CanBeDeleted.Should().BeFalse();
+
+        tournament.Start();
+        tournament.CanBeDeleted.Should().BeFalse();
+
+        tournament.Cancel();
+        tournament.CanBeDeleted.Should().BeTrue();
+        NewTournament().CanBeDeleted.Should().BeTrue();
+    }
 }

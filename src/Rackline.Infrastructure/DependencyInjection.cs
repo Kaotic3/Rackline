@@ -1,5 +1,10 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rackline.Application.Common;
+using Rackline.Application.Players;
+using Rackline.Application.Tournaments;
+using Rackline.Infrastructure.Identity;
 using Rackline.Infrastructure.Persistence;
 using Rackline.Infrastructure.Persistence.Seeding;
 
@@ -11,15 +16,32 @@ public static class DependencyInjection
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         services.AddDbContext<RacklineDbContext>(options => options.UseNpgsql(connectionString));
+
+        services.AddScoped<ITournamentRepository, TournamentRepository>();
+        services.AddScoped<IReferenceData, ReferenceData>();
+        services.AddScoped<ITournamentQueries, TournamentQueries>();
+        services.AddScoped<IPlayerQueries, PlayerQueries>();
         return services;
     }
 
-    /// <summary>Applies pending migrations and, when the database is empty, adds invented sample data.</summary>
-    public static async Task MigrateAndSeedAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Applies pending migrations, adds invented sample data to an empty database and, when
+    /// credentials are supplied, makes sure an administrator exists.
+    /// </summary>
+    public static async Task MigrateAndSeedAsync(
+        this IServiceProvider services,
+        (string Email, string Password)? admin = null,
+        CancellationToken cancellationToken = default)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<RacklineDbContext>();
         await db.Database.MigrateAsync(cancellationToken);
         await DevelopmentSeeder.SeedAsync(db, cancellationToken);
+
+        if (admin is { } credentials)
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            await AdminSeeder.EnsureAdminAsync(users, credentials.Email, credentials.Password);
+        }
     }
 }

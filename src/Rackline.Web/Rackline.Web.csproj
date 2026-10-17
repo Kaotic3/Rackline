@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\Rackline.Infrastructure\Rackline.Infrastructure.csproj" />
@@ -13,6 +13,7 @@
 
   <PropertyGroup>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>8bf7f036-6995-49e5-b57c-0413216ead4a</UserSecretsId>
   </PropertyGroup>
 
 </Project>

@@ -28,10 +28,12 @@ public sealed class PostgresDatabase : IAsyncLifetime
 
     public static string? ServerConnectionString => Environment.GetEnvironmentVariable(ConnectionVariable);
 
+    public string ConnectionString => _connectionString ?? throw new InvalidOperationException("The test database is not available.");
+
     public RacklineDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<RacklineDbContext>()
-            .UseNpgsql(_connectionString ?? throw new InvalidOperationException("The test database is not available."))
+            .UseNpgsql(ConnectionString)
             .Options;
         return new RacklineDbContext(options);
     }

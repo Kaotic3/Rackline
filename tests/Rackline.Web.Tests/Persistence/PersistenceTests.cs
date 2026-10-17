@@ -106,6 +106,41 @@ public class PersistenceTests(PostgresDatabase database) : IClassFixture<Postgre
     }
 
     [PostgresFact]
+    public async Task Simultaneous_results_feeding_the_same_match_cannot_both_be_saved()
+    {
+        var (organisation, _, players) = await AddBasicsAsync(4);
+        var tournament = new Tournament(organisation.Id, "Race Condition Cup", Discipline.NineBall,
+            TournamentFormat.SingleElimination, MatchLength.RaceTo(3));
+        tournament.OpenRegistration();
+        players.ForEach(p => tournament.AddEntry(p.Id));
+        tournament.MakeDraw(new SeededRandom(9));
+        tournament.Start();
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tournaments.Add(tournament);
+            await db.SaveChangesAsync();
+        }
+
+        // Two referees load the same tournament and finish both semi-finals at once.
+        await using var first = database.CreateContext();
+        await using var second = database.CreateContext();
+        var firstCopy = await LoadTournament(first, tournament.Id);
+        var secondCopy = await LoadTournament(second, tournament.Id);
+
+        firstCopy.RecordResult(1, 3, 0, At);
+        secondCopy.RecordResult(2, 3, 1, At);
+        await first.SaveChangesAsync();
+
+        await second.Invoking(db => db.SaveChangesAsync(default)).Should().ThrowAsync<DbUpdateConcurrencyException>();
+
+        await using var check = database.CreateContext();
+        var final = (await LoadTournament(check, tournament.Id)).Matches.Single(m => m.Round == 2);
+        final.Slot1.HasEntry.Should().BeTrue();
+        final.Slot2.IsAwaiting.Should().BeTrue("the second result was rejected, so it can be retried on fresh data");
+    }
+
+    [PostgresFact]
     public async Task Byes_and_unused_links_survive_a_round_trip()
     {
         var (organisation, _, players) = await AddBasicsAsync(5);

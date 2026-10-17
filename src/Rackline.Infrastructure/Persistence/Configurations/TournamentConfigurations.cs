@@ -39,6 +39,9 @@ internal sealed class TournamentConfiguration : IEntityTypeConfiguration<Tournam
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(t => t.Status);
+
+        // Postgres xmin: a save fails if the row changed since it was loaded.
+        builder.Property<uint>("Version").IsRowVersion();
     }
 }
 
@@ -48,6 +51,7 @@ internal sealed class EntryConfiguration : IEntityTypeConfiguration<Entry>
     {
         builder.ToTable("Entries");
         builder.HasIndex(e => new { e.TournamentId, e.PlayerId }).IsUnique();
+        builder.HasIndex(e => new { e.TournamentId, e.Seed }).IsUnique().HasFilter("\"Seed\" IS NOT NULL");
 
         builder.HasOne<Player>().WithMany()
             .HasForeignKey(e => e.PlayerId)
@@ -61,6 +65,9 @@ internal sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
     {
         builder.HasIndex(m => new { m.TournamentId, m.Number }).IsUnique();
         builder.HasIndex(m => new { m.TournamentId, m.State });
+
+        // Two results feeding the same next match must not both win silently.
+        builder.Property<uint>("Version").IsRowVersion();
 
         MapSlot(builder, m => m.Slot1, "Slot1");
         MapSlot(builder, m => m.Slot2, "Slot2");
