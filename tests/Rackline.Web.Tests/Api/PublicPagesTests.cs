@@ -165,6 +165,32 @@ public class PublicPagesTests(ApiFactory api) : IClassFixture<ApiFactory>
     }
 
     [PostgresFact]
+    public async Task Player_profiles_hold_up_under_many_requests_at_once()
+    {
+        // Regression: the page once set the player before loading the rest. Under load the static
+        // renderer drew it half-loaded at its first slow await, failing about one request in ten.
+        var (organiser, tournament, players) = await TournamentAsync("SingleElimination", 2);
+        await ResultAsync(organiser, tournament.Id, tournament.Matches.Single().Number, 3, 1);
+
+        // Twenty at a time: enough to reproduce the old failure, without running the test database out of connections.
+        using var gate = new SemaphoreSlim(20);
+        var statuses = await Task.WhenAll(Enumerable.Range(0, 300).Select(async _ =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                return (await _visitor.GetAsync($"/players/{players[0]}")).StatusCode;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        statuses.Should().AllBeEquivalentTo(HttpStatusCode.OK);
+    }
+
+    [PostgresFact]
     public async Task Head_to_head_compares_two_players()
     {
         var (organiser, t, players) = await TournamentAsync("SingleElimination", 2);
