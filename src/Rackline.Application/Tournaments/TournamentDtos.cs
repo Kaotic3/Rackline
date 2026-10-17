@@ -86,4 +86,7 @@ public interface ITournamentQueries
     Task<IReadOnlyList<TournamentSummaryDto>> ListAsync(TournamentStatus? status, CancellationToken cancellationToken);
 
     Task<TournamentDetailDto?> GetAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The tournament a match belongs to, or null if there is no such match.</summary>
+    Task<Guid?> FindTournamentIdForMatchAsync(Guid matchId, CancellationToken cancellationToken);
 }
